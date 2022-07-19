@@ -24,6 +24,11 @@ impl Contract {
         }
     }
 
+    pub fn create_new_matcher_amount_map() -> UnorderedMap<AccountId, u128> {
+        let prefix = b"m"; // TODO: How to decide this prefix?
+        UnorderedMap::new(prefix)
+    }
+
     #[payable] // Public - People can attach money
     pub fn offer_matching_funds(&mut self, recipient: AccountId) -> String {
         let donation_amount: Balance = env::attached_deposit();
@@ -36,10 +41,7 @@ impl Contract {
         let mut matchers_for_this_recipient =
             match self.matcher_account_id_commitment_amount.get(&recipient) {
                 Some(matcher_commitment_map) => matcher_commitment_map,
-                None => {
-                    let prefix = b"m"; // TODO: How to decide this prefix?
-                    UnorderedMap::new(prefix)
-                }
+                None => Self::create_new_matcher_amount_map(),
             };
         let mut total = donation_amount;
         match matchers_for_this_recipient.get(&matcher) {
@@ -58,19 +60,28 @@ impl Contract {
         result
     }
 
-    /*pub fn get_commitments(&mut self, account_id: AccountId) -> String {
-        //       const matchersLog: string[] = [];
-        // const matchersForThisRecipient = _getMatcherCommitmentsToRecipient(recipient);
-        // const matchers = matchersForThisRecipient.keys();
-        // for (let i = 0; i < matchers.length; i += 1) {
-        //   const matcher = matchers[i];
-        // &  const existingCommitment: u128 = matchersForThisRecipient.getSome(matcher);
-        //   const msg = `${matcher} is committed to match donations to ${recipient} up to a maximum of ${existingCommitment.toString()}.`;
-        //   logging.log(msg);
-        //   matchersLog.push(msg);
-        // }
-        // return matchersLog.join(' ');
-    }*/
+    pub fn get_commitments(&mut self, recipient: AccountId) -> String {
+        let mut matchers_log: Vec<String> = Vec::new();
+        let matchers_for_this_recipient =
+            match self.matcher_account_id_commitment_amount.get(&recipient) {
+                Some(matcher_commitment_map) => matcher_commitment_map,
+                None => Self::create_new_matcher_amount_map(),
+            };
+        let matchers = matchers_for_this_recipient.keys_as_vector();
+        let mut index = 0;
+        while index < matchers.len() {
+            let matcher = matchers.get(index).unwrap();
+            let existing_commitment = matchers_for_this_recipient.get(&matcher).unwrap();
+            let msg = format!(
+                "{} is committed to match donations to {} up to a maximum of {}.",
+                matcher, recipient, existing_commitment
+            );
+            log!(msg);
+            matchers_log.push(msg);
+            index += 1;
+        }
+        matchers_log.join(" ")
+    }
 
     pub fn transfer_from_escrow(&self, destination_account: AccountId, amount: u128) -> Promise {
         // TODO: Consider subtracting storage cost like https://github.com/near-examples/docs-examples/blob/4fda29c8cdabd9aba90787c553413db7725d88bd/donation-rs/contract/src/lib.rs#L51
