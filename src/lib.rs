@@ -2,7 +2,7 @@
 
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use near_sdk::collections::UnorderedMap;
-use near_sdk::{env, log, near_bindgen, AccountId, Balance, Promise};
+use near_sdk::{env, log, near_bindgen, serde_json, AccountId, Balance, Promise};
 
 pub const STORAGE_COST: u128 = 1_000_000_000_000_000_000_000; // ONEDAY: Write this in a more human-readable way, and document how this value was decided.
 
@@ -172,16 +172,17 @@ impl Contract {
         // TODO assert_self();
         match self.matcher_account_id_commitment_amount.get(&recipient) {
             Some(matchers_for_this_recipient) => {
-                let mut matchers_log: Vec<String> = Vec::new();
-                for matcher in matchers_for_this_recipient.keys() {
-                    let msg = format!(
-                        "Deleting matcher {} from recipient {}...",
-                        matcher, recipient
-                    ); // Logging one at a time (since UnorderedMap does not implement Serialize and so cannot convert to JSON easily).
-                    matchers_log.push(msg);
-                }
+                let json_value = matchers_for_this_recipient
+                    .iter()
+                    .map(|(k, v)| (k, v.to_string())) // ONEDAY: use a number instead of string for each value
+                    .collect::<serde_json::Value>();
+                let existing_commitments_from_matchers =
+                    serde_json::to_string(&json_value).unwrap();
                 self.matcher_account_id_commitment_amount.remove(&recipient);
-                matchers_log.join(" ")
+                format!(
+                    "Recipient '{}' had these matchers, which are now deleted: {}",
+                    recipient, existing_commitments_from_matchers
+                )
             }
             None => {
                 format!(
