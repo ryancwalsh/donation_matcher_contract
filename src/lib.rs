@@ -6,11 +6,15 @@ use near_sdk::{env, log, near_bindgen, AccountId, Balance, Promise};
 
 pub const STORAGE_COST: u128 = 1_000_000_000_000_000_000_000; // ONEDAY: Write this in a more human-readable way, and document how this value was decided.
 
+type MatcherAccountId = AccountId;
+type MatcherAmountMap = UnorderedMap<MatcherAccountId, u128>; // https://doc.rust-lang.org/reference/items/type-aliases.html
+type RecipientAccountId = AccountId;
+type MatcherAmountPerRecipient = UnorderedMap<RecipientAccountId, MatcherAmountMap>;
+
 #[near_bindgen]
 #[derive(BorshDeserialize, BorshSerialize)]
 pub struct Contract {
-    pub matcher_account_id_commitment_amount:
-        UnorderedMap<AccountId, UnorderedMap<AccountId, u128>>, // https://docs.near.org/concepts/storage/data-storage#unorderedmap The outer key-value pair is the "recipient: matcher-amount-map". The inner map (matcher amount) has a key-value pair of "matcher: amount".
+    pub matcher_account_id_commitment_amount: MatcherAmountPerRecipient, // https://docs.near.org/concepts/storage/data-storage#unorderedmap The outer key-value pair is the "recipient: matcher-amount-map". The inner map (matcher amount) has a key-value pair of "matcher: amount".
 }
 
 #[near_bindgen]
@@ -24,9 +28,9 @@ impl Contract {
         }
     }
 
-    pub fn create_new_matcher_amount_map() -> UnorderedMap<AccountId, u128> {
+    pub fn create_new_matcher_amount_map() -> MatcherAmountMap {
         let prefix = b"m"; // TODO: How to decide this prefix?
-        UnorderedMap::new(prefix)
+        MatcherAmountMap::new(prefix)
     }
 
     #[payable] // Public - People can attach money
@@ -91,5 +95,37 @@ impl Contract {
             amount
         );
         Promise::new(destination_account.clone()).transfer(amount)
+    }
+
+    /**
+     * Gets called via `rescind_matching_funds` and `send_matching_donation`.
+     */
+    fn set_matcher_amount(
+        &mut self,
+        recipient: AccountId,
+        matcher: AccountId,
+        amount: u128,
+    ) -> MatcherAmountMap {
+        //logging.log(`setMatcherAmount(recipient: ${recipient}, matcher: ${matcher}, amount: ${amount})`);
+        // TODO assert_self();
+        // TODO assert_single_promise_success();
+        let mut matchers_for_this_recipient =
+            match self.matcher_account_id_commitment_amount.get(&recipient) {
+                Some(matcher_commitment_map) => matcher_commitment_map,
+                None => Self::create_new_matcher_amount_map(), // How would this line ever be reached?
+            };
+        if amount > 0 {
+            match matchers_for_this_recipient.get(&matcher) {
+                Some(_) => {
+                    matchers_for_this_recipient.remove(&matcher);
+                    matchers_for_this_recipient.insert(&matcher, &amount);
+                }
+                None => {} // How would this line ever be reached?
+            }
+        } else {
+            self.matcher_account_id_commitment_amount.remove(&matcher);
+        }
+
+        matchers_for_this_recipient
     }
 }
