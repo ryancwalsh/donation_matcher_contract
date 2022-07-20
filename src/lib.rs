@@ -128,4 +128,41 @@ impl Contract {
 
         matchers_for_this_recipient
     }
+
+    pub fn rescind_matching_funds(
+        &mut self,
+        recipient: AccountId,
+        requested_withdrawal_amount: u128,
+    ) -> String {
+        let escrow_contract_name = env::current_account_id(); // https://docs.near.org/develop/contracts/environment/
+        let matcher = env::signer_account_id();
+        let matchers_for_this_recipient =
+            match self.matcher_account_id_commitment_amount.get(&recipient) {
+                Some(matcher_commitment_map) => matcher_commitment_map,
+                None => Self::create_new_matcher_amount_map(), // How would this line ever be reached?
+            };
+        let result;
+        match matchers_for_this_recipient.get(&matcher) {
+            Some(amount_already_committed) => {
+                let mut amount_to_decrease = requested_withdrawal_amount;
+                let mut new_amount = 0;
+                if requested_withdrawal_amount > amount_already_committed {
+                    amount_to_decrease = amount_already_committed;
+                    result = format!("{} is about to rescind {} and then will not be matching donations to {} anymore", matcher, amount_to_decrease, recipient);
+                } else {
+                    new_amount = amount_already_committed - amount_to_decrease;
+                    result = format!("{} is about to rescind {} and then will only be committed to match donations to {} up to a maximum of {}.", matcher, amount_to_decrease, recipient, new_amount);
+                }
+                // TODO transfer_from_escrow(matcher, amount_to_decrease) // Funds go from escrow back to the matcher.
+                //       .then(escrow_contract_name)
+                //       .function_call<RecipientMatcherAmount>('setMatcherAmount', { recipient, matcher, amount: new_amount }, u128.Zero, XCC_GAS);
+                // }
+            }
+            None => {
+                result = format!("{} does not currently have any funds committed to {}, so funds cannot be rescinded.", matcher, recipient);
+            }
+        }
+
+        result
+    }
 }
