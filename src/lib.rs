@@ -4,10 +4,10 @@ use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use near_sdk::collections::UnorderedMap;
 use near_sdk::{env, log, near_bindgen, serde_json, AccountId, Balance, Promise};
 
-pub const STORAGE_COST: u128 = 1_000_000_000_000_000_000_000; // ONEDAY: Write this in a more human-readable way, and document how this value was decided.
+pub const STORAGE_COST: Balance = 1_000_000_000_000_000_000_000; // ONEDAY: Write this in a more human-readable way, and document how this value was decided.
 
 type MatcherAccountId = AccountId;
-type MatcherAmountMap = UnorderedMap<MatcherAccountId, u128>; // https://doc.rust-lang.org/reference/items/type-aliases.html
+type MatcherAmountMap = UnorderedMap<MatcherAccountId, Balance>; // https://doc.rust-lang.org/reference/items/type-aliases.html
 type RecipientAccountId = AccountId;
 type MatcherAmountPerRecipient = UnorderedMap<RecipientAccountId, MatcherAmountMap>;
 
@@ -89,7 +89,7 @@ impl Contract {
         matchers_log.join(" ")
     }
 
-    pub fn transfer_from_escrow(&self, destination_account: AccountId, amount: u128) -> Promise {
+    pub fn transfer_from_escrow(&self, destination_account: AccountId, amount: Balance) -> Promise {
         // TODO: Consider subtracting storage cost like https://github.com/near-examples/docs-examples/blob/4fda29c8cdabd9aba90787c553413db7725d88bd/donation-rs/contract/src/lib.rs#L51
         log!(
             "transfer_from_escrow destination_account: {}, amount: {}",
@@ -106,7 +106,7 @@ impl Contract {
         &mut self,
         recipient: AccountId,
         matcher: AccountId,
-        amount: u128,
+        amount: Balance,
     ) -> MatcherAmountMap {
         //logging.log(`setMatcherAmount(recipient: ${recipient}, matcher: ${matcher}, amount: ${amount})`);
         // TODO assert_self();
@@ -134,7 +134,7 @@ impl Contract {
     pub fn rescind_matching_funds(
         &mut self,
         recipient: AccountId,
-        requested_withdrawal_amount: u128,
+        requested_withdrawal_amount: Balance,
     ) -> String {
         let escrow_contract_name = env::current_account_id(); // https://docs.near.org/develop/contracts/environment/
         let matcher = env::signer_account_id();
