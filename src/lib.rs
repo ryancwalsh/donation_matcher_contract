@@ -4,6 +4,12 @@ use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use near_sdk::collections::UnorderedMap;
 use near_sdk::{env, log, near_bindgen, AccountId, Balance, Promise};
 
+//extern crate serde;
+// extern crate serialize;
+// use serialize::json;
+//use serde::{Deserialize, Serialize};
+//use serde_json::json;
+
 pub const STORAGE_COST: u128 = 1_000_000_000_000_000_000_000; // ONEDAY: Write this in a more human-readable way, and document how this value was decided.
 
 type MatcherAccountId = AccountId;
@@ -164,5 +170,43 @@ impl Contract {
         }
 
         result
+    }
+
+    pub fn delete_all_matches_associated_with_recipient(&mut self, recipient: AccountId) -> String {
+        // TODO assert_self();
+        //let result;
+        let mut matchers_log: Vec<String> = Vec::new();
+        let matchers_for_this_recipient =
+            match self.matcher_account_id_commitment_amount.get(&recipient) {
+                // Some(matcher_commitment_map) => {
+                //     let existing_commitments_from_matchers = json!(&matcher_commitment_map).to_string(); // https://docs.rs/serde_json/latest/serde_json/#constructing-json-values
+                //                                                                                          //json::encode(&matcher_commitment_map).unwrap(); // https://valve.github.io/blog/2014/08/25/json-serialization-in-rust-part-1/
+                //                                                                                          // serde_json::to_string_pretty(&matcher_commitment_map).unwrap(); // https://rust-by-example-ext.com/serde/json.html
+                //     result = format!(
+                //         "Recipient '{}' had these matchers, which are now deleted: {}",
+                //         recipient, existing_commitments_from_matchers
+                //     );
+                //     self.matcher_account_id_commitment_amount.remove(&recipient);
+                // }
+                // None => {
+                //     result = format!(
+                //         "Recipient '{}' did not have any matchers to delete.",
+                //         recipient
+                //     );
+                // }
+                Some(matcher_commitment_map) => matcher_commitment_map,
+                None => Self::create_new_matcher_amount_map(), // TODO: Handle this case differently. Return a helpful message.
+            };
+        //result
+        for matcher in matchers_for_this_recipient.keys() {
+            // matchers_for_this_recipient.remove(&matcher);
+            let msg = format!(
+                "Deleting matcher {} from recipient {}...",
+                matcher, recipient
+            ); // Doing it one at a time for the purpose of logging (since UnorderedMap does not implement Serialize and so cannot convert to JSON easily)
+            matchers_log.push(msg);
+        }
+        self.matcher_account_id_commitment_amount.remove(&recipient);
+        matchers_log.join(" ")
     }
 }
