@@ -4,17 +4,17 @@ use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use near_sdk::collections::UnorderedMap;
 use near_sdk::{env, log, near_bindgen, serde_json, AccountId, Balance, Promise};
 
-pub const STORAGE_COST: Balance = 1_000_000_000_000_000_000_000; // ONEDAY: Write this in a more human-readable way, and document how this value was decided.
-
 type MatcherAccountId = AccountId;
 type MatcherAmountMap = UnorderedMap<MatcherAccountId, Balance>; // https://doc.rust-lang.org/reference/items/type-aliases.html
 type RecipientAccountId = AccountId;
 type MatcherAmountPerRecipient = UnorderedMap<RecipientAccountId, MatcherAmountMap>;
 
+pub const STORAGE_COST: Balance = 1_000_000_000_000_000_000_000; // ONEDAY: Write this in a more human-readable way, and document how this value was decided.
+
 #[near_bindgen]
 #[derive(BorshDeserialize, BorshSerialize)]
 pub struct Contract {
-    pub matcher_account_id_commitment_amount: MatcherAmountPerRecipient, // https://docs.near.org/concepts/storage/data-storage#unorderedmap The outer key-value pair is the "recipient: matcher-amount-map". The inner map (matcher amount) has a key-value pair of "matcher: amount".
+    pub recipients: MatcherAmountPerRecipient, // https://docs.near.org/concepts/storage/data-storage#unorderedmap The outer key-value pair is the "recipient: matcher-amount-map". The inner map (matcher amount) has a key-value pair of "matcher: amount".
 }
 
 // TODO: Review each part of this repo to ensure that it can scale to large amounts of data.
@@ -26,12 +26,13 @@ impl Contract {
     pub fn new() -> Self {
         assert!(!env::state_exists(), "Already initialized");
         Self {
-            matcher_account_id_commitment_amount: UnorderedMap::new(b"d"),
+            recipients: MatcherAmountPerRecipient::new(b"d"),
         }
     }
 
-    pub fn create_new_matcher_amount_map() -> MatcherAmountMap {
-        let prefix = b"m"; // TODO: How to decide this prefix?
+    pub fn create_new_matcher_amount_map(recipient: &AccountId) -> MatcherAmountMap {
+        let prefix_string = "r".to_string() + &recipient.to_string();
+        let prefix: &[u8] = prefix_string.as_bytes();
         MatcherAmountMap::new(prefix)
     }
 
@@ -44,15 +45,14 @@ impl Contract {
             STORAGE_COST
         );
         let matcher = env::signer_account_id(); // https://docs.near.org/develop/contracts/environment/
-        let mut matchers_for_this_recipient =
-            match self.matcher_account_id_commitment_amount.get(&recipient) {
-                Some(matcher_commitment_map) => matcher_commitment_map,
-                None => Self::create_new_matcher_amount_map(),
-            };
+        let mut matchers_for_this_recipient = match self.recipients.get(&recipient) {
+            Some(matcher_commitment_map) => matcher_commitment_map,
+            None => Self::create_new_matcher_amount_map(&recipient),
+        };
         let mut total = donation_amount;
         match matchers_for_this_recipient.get(&matcher) {
             Some(existing_commitment) => {
-                total += existing_commitment;
+                total = total + existing_commitment;
                 matchers_for_this_recipient.remove(&matcher);
             }
             None => {}
@@ -68,11 +68,10 @@ impl Contract {
 
     pub fn get_commitments(&mut self, recipient: AccountId) -> String {
         let mut matchers_log: Vec<String> = Vec::new();
-        let matchers_for_this_recipient =
-            match self.matcher_account_id_commitment_amount.get(&recipient) {
-                Some(matcher_commitment_map) => matcher_commitment_map,
-                None => Self::create_new_matcher_amount_map(),
-            };
+        let matchers_for_this_recipient = match self.recipients.get(&recipient) {
+            Some(matcher_commitment_map) => matcher_commitment_map,
+            None => Self::create_new_matcher_amount_map(&recipient),
+        };
         let matchers = matchers_for_this_recipient.keys_as_vector();
         let mut index = 0;
         while index < matchers.len() {
@@ -111,11 +110,10 @@ impl Contract {
         //logging.log(`setMatcherAmount(recipient: ${recipient}, matcher: ${matcher}, amount: ${amount})`);
         // TODO assert_self();
         // TODO assert_single_promise_success();
-        let mut matchers_for_this_recipient =
-            match self.matcher_account_id_commitment_amount.get(&recipient) {
-                Some(matcher_commitment_map) => matcher_commitment_map,
-                None => Self::create_new_matcher_amount_map(), // How would this line ever be reached?
-            };
+        let mut matchers_for_this_recipient = match self.recipients.get(&recipient) {
+            Some(matcher_commitment_map) => matcher_commitment_map,
+            None => Self::create_new_matcher_amount_map(&recipient), // How would this line ever be reached?
+        };
         if amount > 0 {
             match matchers_for_this_recipient.get(&matcher) {
                 Some(_) => {
@@ -125,7 +123,7 @@ impl Contract {
                 None => {} // How would this line ever be reached?
             }
         } else {
-            self.matcher_account_id_commitment_amount.remove(&matcher);
+            self.recipients.remove(&matcher);
         }
 
         matchers_for_this_recipient
@@ -138,11 +136,10 @@ impl Contract {
     ) -> String {
         let escrow_contract_name = env::current_account_id(); // https://docs.near.org/develop/contracts/environment/
         let matcher = env::signer_account_id();
-        let matchers_for_this_recipient =
-            match self.matcher_account_id_commitment_amount.get(&recipient) {
-                Some(matcher_commitment_map) => matcher_commitment_map,
-                None => Self::create_new_matcher_amount_map(), // How would this line ever be reached?
-            };
+        let matchers_for_this_recipient = match self.recipients.get(&recipient) {
+            Some(matcher_commitment_map) => matcher_commitment_map,
+            None => Self::create_new_matcher_amount_map(&recipient), // How would this line ever be reached?
+        };
         let result;
         match matchers_for_this_recipient.get(&matcher) {
             Some(amount_already_committed) => {
@@ -170,15 +167,18 @@ impl Contract {
 
     pub fn delete_all_matches_associated_with_recipient(&mut self, recipient: AccountId) -> String {
         // TODO assert_self();
-        match self.matcher_account_id_commitment_amount.get(&recipient) {
+        match self.recipients.get(&recipient) {
             Some(matchers_for_this_recipient) => {
+                // let temp = JsonContainer {
+                //     matcher_account_map: matchers_for_this_recipient,
+                // };
                 let json_value = matchers_for_this_recipient
                     .iter()
-                    .map(|(k, v)| (k, v.to_string())) // ONEDAY: use a number instead of string for each value
-                    .collect::<serde_json::Value>();
+                    .map(|(k, v)| (k, v.to_string()))
+                    .collect::<serde_json::Value>(); //serde_json::to_string(&temp).unwrap();
                 let existing_commitments_from_matchers =
                     serde_json::to_string(&json_value).unwrap();
-                self.matcher_account_id_commitment_amount.remove(&recipient);
+                self.recipients.remove(&recipient);
                 format!(
                     "Recipient '{}' had these matchers, which are now deleted: {}",
                     recipient, existing_commitments_from_matchers
