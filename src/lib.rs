@@ -4,12 +4,13 @@ use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use near_sdk::collections::UnorderedMap;
 use near_sdk::{env, log, near_bindgen, serde_json, AccountId, Balance, Promise};
 
+type Amount = Balance;
 type MatcherAccountId = AccountId;
-type MatcherAmountMap = UnorderedMap<MatcherAccountId, Balance>; // https://doc.rust-lang.org/reference/items/type-aliases.html
+type MatcherAmountMap = UnorderedMap<MatcherAccountId, Amount>; // https://doc.rust-lang.org/reference/items/type-aliases.html
 type RecipientAccountId = AccountId;
 type MatcherAmountPerRecipient = UnorderedMap<RecipientAccountId, MatcherAmountMap>;
 
-pub const STORAGE_COST: Balance = 1_000_000_000_000_000_000_000; // ONEDAY: Write this in a more human-readable way, and document how this value was decided.
+pub const STORAGE_COST: Amount = 1_000_000_000_000_000_000_000; // ONEDAY: Write this in a more human-readable way, and document how this value was decided.
 
 #[near_bindgen]
 #[derive(BorshDeserialize, BorshSerialize)]
@@ -38,7 +39,7 @@ impl Contract {
 
     #[payable] // Public - People can attach money
     pub fn offer_matching_funds(&mut self, recipient: AccountId) -> String {
-        let donation_amount: Balance = env::attached_deposit();
+        let donation_amount: Amount = env::attached_deposit();
         assert!(
             donation_amount > STORAGE_COST,
             "Attach at least {} yoctoNEAR",
@@ -88,7 +89,7 @@ impl Contract {
         matchers_log.join(" ")
     }
 
-    pub fn transfer_from_escrow(&self, destination_account: AccountId, amount: Balance) -> Promise {
+    pub fn transfer_from_escrow(&self, destination_account: AccountId, amount: Amount) -> Promise {
         // TODO: Consider subtracting storage cost like https://github.com/near-examples/docs-examples/blob/4fda29c8cdabd9aba90787c553413db7725d88bd/donation-rs/contract/src/lib.rs#L51
         log!(
             "transfer_from_escrow destination_account: {}, amount: {}",
@@ -105,7 +106,7 @@ impl Contract {
         &mut self,
         recipient: AccountId,
         matcher: AccountId,
-        amount: Balance,
+        amount: Amount,
     ) -> MatcherAmountMap {
         //logging.log(`setMatcherAmount(recipient: ${recipient}, matcher: ${matcher}, amount: ${amount})`);
         // TODO assert_self();
@@ -132,7 +133,7 @@ impl Contract {
     pub fn rescind_matching_funds(
         &mut self,
         recipient: AccountId,
-        requested_withdrawal_amount: Balance,
+        requested_withdrawal_amount: Amount,
     ) -> String {
         let escrow_contract_name = env::current_account_id(); // https://docs.near.org/develop/contracts/environment/
         let matcher = env::signer_account_id();
@@ -163,6 +164,59 @@ impl Contract {
         }
 
         result
+    }
+
+    fn send_matching_donation(
+        matcher: AccountId,
+        recipient: AccountId,
+        amount: Amount,
+        matchers_for_this_recipient: MatcherAmountMap,
+    ) {
+        //   const currentCommitment: u128 = matchersForThisRecipient.getSome(matcher);
+        //   const matchedAmount: u128 = min(amount, currentCommitment);
+        //   const remainingCommitment: u128 = u128.sub(currentCommitment, matchedAmount);
+        //   logging.log(`${matcher} will send a matching donation of ${matchedAmount} to ${recipient}. Remaining commitment: ${remainingCommitment}.`);
+        //   _transferFromEscrow(recipient, matchedAmount)
+        //     .then(escrowContractName)
+        //     .function_call<RecipientMatcherAmount>('setMatcherAmount', { recipient, matcher, amount: remainingCommitment }, u128.Zero, XCC_GAS);
+    }
+
+    fn send_matching_donations(recipient: AccountId, amount: Amount) {
+        //   const matchersForThisRecipient = _getMatcherCommitmentsToRecipient(recipient);
+        //   const matcherKeysForThisRecipient = matchersForThisRecipient.keys();
+        //   for (let i = 0; i < matcherKeysForThisRecipient.length; i += 1) {
+        //     const matcher = matcherKeysForThisRecipient[i];
+        //     _sendMatchingDonation(matcher, recipient, amount, matchersForThisRecipient, escrowContractName);
+        //   }
+    }
+
+    pub fn transfer_from_escrow_callback_after_donating(
+        donor: AccountId,
+        recipient: AccountId,
+        amount: Amount,
+    ) {
+        //   assert_self();
+        //   assert_single_promise_success();
+
+        //   logging.log(`transferFromEscrowCallbackAfterDonating. ${donor} donated ${amount} to ${recipient}.`);
+        //   _sendMatchingDonations(recipient, amount, escrowContractName);
+    }
+
+    pub fn donate(recipient: AccountId) {
+        //   const amount = Context.attachedDeposit;
+        //   assert(u128.gt(amount, u128.Zero), '`attachedDeposit` must be > 0.');
+        //   const donor = Context.sender;
+        //   const escrowContractName = Context.contractName;
+        //   const prepaidGas = Context.prepaidGas;
+        //   const gasAlreadyBurned = Context.usedGas;
+        //   const gasToBeBurnedDuringTransferFromEscrow = XCC_GAS;
+        //   const remainingGas = prepaidGas - gasAlreadyBurned - gasToBeBurnedDuringTransferFromEscrow;
+        //   logging.log(
+        //     `prepaidGas=${prepaidGas}, gasAlreadyBurned=${gasAlreadyBurned}, gasToBeBurnedDuringTransferFromEscrow=${gasToBeBurnedDuringTransferFromEscrow}, remainingGas=${remainingGas}`,
+        //   );
+        //   _transferFromEscrow(recipient, amount) // Immediately pass it along.
+        //     .then(escrowContractName)
+        //     .function_call<DRAE>('transferFromEscrowCallbackAfterDonating', { donor, recipient, amount, escrowContractName }, u128.Zero, remainingGas);
     }
 
     pub fn delete_all_matches_associated_with_recipient(&mut self, recipient: AccountId) -> String {
