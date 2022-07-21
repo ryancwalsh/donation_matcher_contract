@@ -24,13 +24,14 @@ On each donation:
 # Usage
 
 1. clone this repo to a local folder
+1. `cargo install raen`
 1. // TODO
 1. Read https://docs.near.org/docs/tools/near-cli#near-call and decide whether you want to use `--depositYocto` or `--deposit` in the steps below.
 
 ## For localnet (work in progress; consider using testnet below for now):
 
 1. `export NEAR_ENV=local`
-1. [how to deploy contract locally?]
+1. [how to deploy contract locally?] `near dev-deploy $(raen build --release -q)`
 
 ```
 near create-account justatemporarylocalaccount.node0 --masterAccount node0 --initialBalance 1000 --keyPath ~/.near/localnet/node0/validator_key.json
