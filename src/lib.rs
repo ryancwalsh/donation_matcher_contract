@@ -2,7 +2,7 @@
 
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use near_sdk::collections::UnorderedMap;
-use near_sdk::{env, log, near_bindgen, serde_json, AccountId, Balance, Promise};
+use near_sdk::{env, log, near_bindgen, serde_json, AccountId, Balance, PanicOnDefault, Promise};
 
 type Amount = Balance;
 type MatcherAccountId = AccountId;
@@ -13,7 +13,7 @@ type MatcherAmountPerRecipient = UnorderedMap<RecipientAccountId, MatcherAmountM
 pub const STORAGE_COST: Amount = 1_000_000_000_000_000_000_000; // ONEDAY: Write this in a more human-readable way, and document how this value was decided.
 
 #[near_bindgen]
-#[derive(BorshDeserialize, BorshSerialize)]
+#[derive(BorshDeserialize, BorshSerialize, PanicOnDefault)]
 pub struct Contract {
     pub recipients: MatcherAmountPerRecipient, // https://docs.near.org/concepts/storage/data-storage#unorderedmap The outer key-value pair is the "recipient: matcher-amount-map". The inner map (matcher amount) has a key-value pair of "matcher: amount".
 }
@@ -31,7 +31,7 @@ impl Contract {
         }
     }
 
-    pub fn create_new_matcher_amount_map(recipient: &AccountId) -> MatcherAmountMap {
+    fn create_new_matcher_amount_map(recipient: &AccountId) -> MatcherAmountMap {
         let prefix_string = "r".to_string() + &recipient.to_string();
         let prefix: &[u8] = prefix_string.as_bytes();
         MatcherAmountMap::new(prefix)
