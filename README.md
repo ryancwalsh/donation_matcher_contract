@@ -126,7 +126,7 @@ near view $CONTRACT get_commitments "{\"recipient\": \"$RECIPIENT\"}"
 
 (The CLI/Explorer should now show Matcher1's balance as ~16 and get_commitments as empty.)
 
-Optionally nuke the match relationships if they weren't already emptied: `near call $CONTRACT deleteAllMatchesAssociatedWithRecipient "{\"recipient\": \"$RECIPIENT\"}" --accountId $CONTRACT --gas=15000000000000`
+Optionally nuke the match relationships if they weren't already emptied: `near call $CONTRACT delete_all_matches_associated_with_recipient "{\"recipient\": \"$RECIPIENT\"}" --accountId $CONTRACT --gas=15000000000000` or nuke all recipients' data: `near call $CONTRACT nuke_all_data_in_contract --accountId $CONTRACT --gas=15000000000000`
 
 Optionally clean up accounts with:
 

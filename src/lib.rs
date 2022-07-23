@@ -259,4 +259,10 @@ impl Contract {
             }
         }
     }
+
+    #[private] // Public - but only callable by env::current_account_id()
+    pub fn nuke_all_data_in_contract(&mut self) {
+        // TODO: Is there enough security?
+        self.recipients.clear();
+    }
 }
