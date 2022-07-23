@@ -32,9 +32,14 @@ impl Contract {
     }
 
     fn create_new_matcher_amount_map(recipient: &AccountId) -> MatcherAmountMap {
-        let prefix_string = "r".to_string() + &recipient.to_string();
+        let prefix_string = "r".to_string() + &recipient.to_string(); // ONEDAY: https://stackoverflow.com/questions/65248816/why-should-i-hash-keys-in-the-nearprotocol-unorderedmap
         let prefix: &[u8] = prefix_string.as_bytes();
         MatcherAmountMap::new(prefix)
+    }
+
+    fn get_expected_matchers_for_this_recipient(&self, recipient: &AccountId) -> MatcherAmountMap {
+        let msg = format!("Could not find any matchers for recipient `{}`", &recipient);
+        self.recipients.get(&recipient).expect(&msg)
     }
 
     #[payable] // Public - People can attach money
@@ -46,19 +51,32 @@ impl Contract {
             STORAGE_COST
         );
         let matcher = env::signer_account_id(); // https://docs.near.org/develop/contracts/environment/
-        let mut matchers_for_this_recipient = match self.recipients.get(&recipient) {
-            Some(matcher_commitment_map) => matcher_commitment_map,
-            None => Self::create_new_matcher_amount_map(&recipient),
-        };
         let mut total = donation_amount;
-        match matchers_for_this_recipient.get(&matcher) {
-            Some(existing_commitment) => {
-                total = total + existing_commitment;
-                matchers_for_this_recipient.remove(&matcher);
+        match self.recipients.get(&recipient) {
+            Some(mut matchers_for_this_recipient) => {
+                // If this recipient already has 1 or more matchers...
+                match matchers_for_this_recipient.get(&matcher) {
+                    Some(existing_commitment) => {
+                        // If this same matcher already committed funds to this recipient and is adding more...
+                        log!("This same matcher already committed funds to this recipient and is adding more...");
+                        total = total + existing_commitment;
+                        matchers_for_this_recipient.remove(&matcher);
+                        matchers_for_this_recipient.insert(&matcher, &total);
+                    }
+                    None => {
+                        log!("This recipient already had at least 1 matcher, but this is a new matcher now");
+                        matchers_for_this_recipient.insert(&matcher, &total);
+                    }
+                }
             }
-            None => {}
-        }
-        matchers_for_this_recipient.insert(&matcher, &total);
+            None => {
+                // Else this recipient does not have matchers yet, so we should create a new matcher_amount_map and insert it into the recipients map.
+                let mut matcher_amount_map: MatcherAmountMap =
+                    Self::create_new_matcher_amount_map(&recipient);
+                matcher_amount_map.insert(&matcher, &total);
+                self.recipients.insert(&recipient, &matcher_amount_map);
+            }
+        };
         let result = format!(
             "{} is now committed to match donations to {} up to a maximum of {}.",
             matcher, recipient, total
@@ -67,16 +85,12 @@ impl Contract {
         result
     }
 
-    pub fn get_commitments(&mut self, recipient: AccountId) -> String {
+    pub fn get_commitments(&self, recipient: AccountId) -> String {
         let mut matchers_log: Vec<String> = Vec::new();
-        let matchers_for_this_recipient = match self.recipients.get(&recipient) {
-            Some(matcher_commitment_map) => matcher_commitment_map,
-            None => Self::create_new_matcher_amount_map(&recipient),
-        };
+        let matchers_for_this_recipient: MatcherAmountMap =
+            self.get_expected_matchers_for_this_recipient(&recipient);
         let matchers = matchers_for_this_recipient.keys_as_vector();
-        let mut index = 0;
-        while index < matchers.len() {
-            let matcher = matchers.get(index).unwrap();
+        for (_, matcher) in matchers.iter().enumerate() {
             let existing_commitment = matchers_for_this_recipient.get(&matcher).unwrap();
             let msg = format!(
                 "{} is committed to match donations to {} up to a maximum of {}.",
@@ -84,7 +98,6 @@ impl Contract {
             );
             log!(msg);
             matchers_log.push(msg);
-            index += 1;
         }
         matchers_log.join(" ")
     }
