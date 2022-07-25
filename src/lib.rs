@@ -67,6 +67,7 @@ impl Contract {
             hash: hash_account_id(&recipient.to_string()),
         })
     }
+
     fn get_expected_matchers_for_this_recipient(&self, recipient: &AccountId) -> MatcherAmountMap {
         let msg = format!("Could not find any matchers for recipient `{}`", &recipient);
         self.recipients.get(&recipient).expect(&msg)
@@ -159,10 +160,8 @@ impl Contract {
         );
         // TODO assert_self();
         // TODO assert_single_promise_success();
-        let mut matchers_for_this_recipient = self
-            .recipients
-            .get(&recipient)
-            .expect(format!("Recipient `{}` could not be found.", recipient).as_str());
+        let mut matchers_for_this_recipient =
+            self.get_expected_matchers_for_this_recipient(&recipient);
         if amount > 0 {
             let existing_commitment = matchers_for_this_recipient.get(&matcher).expect(
                 format!(
@@ -190,10 +189,7 @@ impl Contract {
     ) -> String {
         let escrow_contract_name = env::current_account_id(); // https://docs.near.org/develop/contracts/environment/
         let matcher = env::signer_account_id();
-        let matchers_for_this_recipient = self
-            .recipients
-            .get(&recipient)
-            .expect(format!("Recipient `{}` could not be found.", recipient).as_str());
+        let matchers_for_this_recipient = self.get_expected_matchers_for_this_recipient(&recipient);
         let result;
         let amount_already_committed = matchers_for_this_recipient.get(&matcher).expect(
             format!(
@@ -238,13 +234,14 @@ impl Contract {
         //     .function_call<RecipientMatcherAmount>('setMatcherAmount', { recipient, matcher, amount: remainingCommitment }, u128.Zero, XCC_GAS);
     }
 
-    fn send_matching_donations(recipient: AccountId, amount: Amount) {
-        //   const matchersForThisRecipient = _getMatcherCommitmentsToRecipient(recipient);
-        //   const matcherKeysForThisRecipient = matchersForThisRecipient.keys();
-        //   for (let i = 0; i < matcherKeysForThisRecipient.length; i += 1) {
-        //     const matcher = matcherKeysForThisRecipient[i];
-        //     _sendMatchingDonation(matcher, recipient, amount, matchersForThisRecipient, escrowContractName);
-        //   }
+    fn send_matching_donations(&self, recipient: AccountId, amount: Amount) {
+        let matchers_for_this_recipient = self.get_expected_matchers_for_this_recipient(&recipient);
+        let escrow_contract_name = env::current_account_id(); // https://docs.near.org/develop/contracts/environment/
+                                                              //   const matcherKeysForThisRecipient = matchersForThisRecipient.keys();
+                                                              //   for (let i = 0; i < matcherKeysForThisRecipient.length; i += 1) {
+                                                              //     const matcher = matcherKeysForThisRecipient[i];
+                                                              //     _sendMatchingDonation(matcher, recipient, amount, matchersForThisRecipient, escrow_contract_name);
+                                                              //   }
     }
 
     pub fn transfer_from_escrow_callback_after_donating(
