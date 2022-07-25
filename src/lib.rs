@@ -3,7 +3,7 @@
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use near_sdk::collections::{LookupMap, UnorderedMap};
 use near_sdk::{
-    env, log, near_bindgen, serde_json, AccountId, Balance, BorshStorageKey, CryptoHash,
+    env, log, near_bindgen, serde_json, AccountId, Balance, BorshStorageKey, CryptoHash, Gas,
     PanicOnDefault, Promise,
 };
 use witgen::witgen;
@@ -16,6 +16,7 @@ type RecipientAccountId = AccountId;
 type MatcherAmountPerRecipient = LookupMap<RecipientAccountId, MatcherAmountMap>;
 
 pub const STORAGE_COST: Amount = 1_000_000_000_000_000_000_000; // ONEDAY: Write this in a more human-readable way, and document how this value was decided.
+pub const GAS_FOR_ACCOUNT_CALLBACK: Gas = Gas(20_000_000_000_000); // gas for cross-contract calls, ~5 Tgas (teragas = 1e12) per "hop"
 
 // TODO: Move helper functions to a separate file
 
@@ -155,7 +156,7 @@ impl Contract {
         format!("These matchers are committed to match donations to {} up to a maximum of the following amounts:\n{}",recipient,matchers_log.join("\n"))
     }
 
-    pub fn transfer_from_escrow(&self, destination_account: AccountId, amount: Amount) -> Promise {
+    pub fn transfer_from_escrow(&self, destination_account: &AccountId, amount: Amount) -> Promise {
         // TODO: Consider subtracting storage cost like https://github.com/near-examples/docs-examples/blob/4fda29c8cdabd9aba90787c553413db7725d88bd/donation-rs/contract/src/lib.rs#L51
         log!(
             "transfer_from_escrow destination_account: {}, amount: {}",
@@ -168,10 +169,10 @@ impl Contract {
     /**
      * Gets called via `rescind_matching_funds` and `send_matching_donation`.
      */
-    fn set_matcher_amount(
+    pub fn set_matcher_amount(
         &mut self,
-        recipient: AccountId,
-        matcher: AccountId,
+        recipient: &AccountId,
+        matcher: &AccountId,
         amount: Amount,
     ) -> MatcherAmountMap {
         near_sdk::log!(
@@ -197,10 +198,9 @@ impl Contract {
 
     pub fn rescind_matching_funds(
         &mut self,
-        recipient: AccountId,
+        recipient: &AccountId,
         requested_withdrawal_amount: Amount,
     ) -> String {
-        let escrow_contract_name = env::current_account_id(); // https://docs.near.org/develop/contracts/environment/
         let matcher = env::signer_account_id();
         let matchers_for_this_recipient = self.get_expected_matchers_for_this_recipient(&recipient);
         let result;
@@ -219,11 +219,12 @@ impl Contract {
             new_amount = amount_already_committed - amount_to_decrease;
             result = format!("{} is about to rescind {} and then will only be committed to match donations to {} up to a maximum of {}.", matcher, yocto_to_near_string(amount_to_decrease), recipient, yocto_to_near_string(new_amount));
         }
-        // TODO transfer_from_escrow(matcher, amount_to_decrease) // Funds go from escrow back to the matcher.
-        //       .then(escrow_contract_name)
-        //       .function_call<RecipientMatcherAmount>('setMatcherAmount', { recipient, matcher, amount: new_amount }, u128.Zero, XCC_GAS);
-        // }
-
+        self.transfer_from_escrow(&matcher, amount_to_decrease) // Funds go from escrow back to the matcher.
+            .then(
+                Self::ext(env::current_account_id()) // escrow contract name
+                    .with_static_gas(GAS_FOR_ACCOUNT_CALLBACK)
+                    .set_matcher_amount(&recipient, &matcher, new_amount),
+            );
         result
     }
 
@@ -240,9 +241,9 @@ impl Contract {
         // TODO  const matched_amount: u128 = min(amount, existing_commitment);
         //   const remaining_commitment: u128 = u128.sub(existing_commitment, matched_amount);
         //   logging.log(`${matcher} will send a matching donation of yocto_to_near_string(${matched_amount}) to ${recipient}. Remaining commitment: yocto_to_near_string(${remaining_commitment}).`);
-        //   _transferFromEscrow(recipient, matched_amount)
+        //   _transfer_from_escrow(recipient, matched_amount)
         //     .then(escrowContractName)
-        //     .function_call<RecipientMatcherAmount>('setMatcherAmount', { recipient, matcher, amount: remaining_commitment }, u128.Zero, XCC_GAS);
+        //     .function_call<RecipientMatcherAmount>('set_matcher_amount', { recipient, matcher, amount: remainingCommitment }, u128.Zero, XCC_GAS);
     }
 
     fn send_matching_donations(&self, recipient: &AccountId, amount: Amount) {
@@ -261,7 +262,7 @@ impl Contract {
         // TODO  assert_self();
         //   assert_single_promise_success();
 
-        //   logging.log(`transferFromEscrowCallbackAfterDonating. ${donor} donated yocto_to_near_string(${amount}) to ${recipient}.`);
+        //   logging.log(`transfer_from_escrow_callback_after_donating. ${donor} donated yocto_to_near_string(${amount}) to ${recipient}.`);
         //   _sendMatchingDonations(recipient, amount, escrowContractName);
     }
 
@@ -277,9 +278,9 @@ impl Contract {
         //   logging.log(
         //     `prepaidGas=${prepaidGas}, gasAlreadyBurned=${gasAlreadyBurned}, gasToBeBurnedDuringTransferFromEscrow=${gasToBeBurnedDuringTransferFromEscrow}, remainingGas=${remainingGas}`,
         //   );
-        //   _transferFromEscrow(recipient, amount) // Immediately pass it along.
+        //   _transfer_from_escrow(recipient, amount) // Immediately pass it along.
         //     .then(escrowContractName)
-        //     .function_call<DRAE>('transferFromEscrowCallbackAfterDonating', { donor, recipient, amount, escrowContractName }, u128.Zero, remainingGas);
+        //     .function_call<DRAE>('transfer_from_escrow_callback_after_donating', { donor, recipient, amount, escrowContractName }, u128.Zero, remainingGas);
     }
 
     pub fn delete_all_matches_associated_with_recipient(&mut self, recipient: AccountId) -> String {
