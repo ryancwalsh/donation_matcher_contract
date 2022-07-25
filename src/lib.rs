@@ -31,6 +31,12 @@ pub(crate) fn yocto_to_near(yocto: u128) -> f64 {
     near
 }
 
+/// Helper function to convert yoctoNEAR to $NEAR with 4 decimals of precision.
+pub(crate) fn yocto_to_near_string(yocto: u128) -> String {
+    let numeric = yocto_to_near(yocto);
+    numeric.to_string() + &" Ⓝ".to_string()
+}
+
 #[derive(BorshSerialize, BorshStorageKey)]
 enum StorageKey {
     Recipients,
@@ -84,9 +90,15 @@ impl Contract {
 
         // If the matcher has already donated, increment their donation.
         let existing_commitment = matchers_for_this_recipient.get(&matcher).unwrap_or(0);
-        near_sdk::log!("existing_commitment {}", yocto_to_near(existing_commitment));
+        near_sdk::log!(
+            "existing_commitment {}",
+            yocto_to_near_string(existing_commitment)
+        );
         let updated_commitment = donation_amount + existing_commitment;
-        near_sdk::log!("updated_commitment {}", yocto_to_near(updated_commitment));
+        near_sdk::log!(
+            "updated_commitment {}",
+            yocto_to_near_string(updated_commitment)
+        );
         matchers_for_this_recipient.insert(&matcher, &updated_commitment);
 
         self.recipients
@@ -96,7 +108,7 @@ impl Contract {
             "{} is now committed to match donations to {} up to a maximum of {}.",
             matcher,
             recipient,
-            yocto_to_near(donation_amount)
+            yocto_to_near_string(donation_amount)
         );
         log!(result);
         result
@@ -109,7 +121,11 @@ impl Contract {
         let matchers = matchers_for_this_recipient.keys_as_vector();
         for (_, matcher) in matchers.iter().enumerate() {
             let existing_commitment = matchers_for_this_recipient.get(&matcher).unwrap();
-            let msg = format!("{}: {} N,", matcher, yocto_to_near(existing_commitment));
+            let msg = format!(
+                "{}: {},",
+                matcher,
+                yocto_to_near_string(existing_commitment)
+            );
             log!(msg);
             matchers_log.push(msg);
         }
@@ -121,7 +137,7 @@ impl Contract {
         log!(
             "transfer_from_escrow destination_account: {}, amount: {}",
             destination_account,
-            amount
+            yocto_to_near_string(amount)
         );
         Promise::new(destination_account.clone()).transfer(amount)
     }
@@ -135,21 +151,31 @@ impl Contract {
         matcher: AccountId,
         amount: Amount,
     ) -> MatcherAmountMap {
-        //logging.log(`setMatcherAmount(recipient: ${recipient}, matcher: ${matcher}, amount: ${amount})`);
+        near_sdk::log!(
+            "set_matcher_amount(recipient: {}, matcher: {}, amount: {})",
+            &recipient,
+            &matcher,
+            &yocto_to_near_string(amount)
+        );
         // TODO assert_self();
         // TODO assert_single_promise_success();
-        let mut matchers_for_this_recipient = match self.recipients.get(&recipient) {
-            Some(matcher_commitment_map) => matcher_commitment_map,
-            None => Self::create_new_matcher_amount_map(&recipient), // How would this line ever be reached?
-        };
+        let mut matchers_for_this_recipient = self
+            .recipients
+            .get(&recipient)
+            .expect(format!("Recipient `{}` could not be found.", recipient).as_str());
         if amount > 0 {
-            match matchers_for_this_recipient.get(&matcher) {
-                Some(_) => {
-                    matchers_for_this_recipient.remove(&matcher);
-                    matchers_for_this_recipient.insert(&matcher, &amount);
-                }
-                None => {} // How would this line ever be reached?
-            }
+            let existing_commitment = matchers_for_this_recipient.get(&matcher).expect(
+                format!(
+            "{} does not currently have any funds committed to {}, so funds cannot be rescinded.",
+            matcher, recipient
+        )
+                .as_str(),
+            );
+            near_sdk::log!(
+                "existing_commitment = {}",
+                yocto_to_near_string(existing_commitment)
+            );
+            matchers_for_this_recipient.insert(&matcher, &amount);
         } else {
             self.recipients.remove(&matcher);
         }
@@ -164,31 +190,35 @@ impl Contract {
     ) -> String {
         let escrow_contract_name = env::current_account_id(); // https://docs.near.org/develop/contracts/environment/
         let matcher = env::signer_account_id();
-        let matchers_for_this_recipient = match self.recipients.get(&recipient) {
-            Some(matcher_commitment_map) => matcher_commitment_map,
-            None => Self::create_new_matcher_amount_map(&recipient), // How would this line ever be reached?
-        };
+        let matchers_for_this_recipient = self
+            .recipients
+            .get(&recipient)
+            .expect(format!("Recipient `{}` could not be found.", recipient).as_str());
         let result;
-        match matchers_for_this_recipient.get(&matcher) {
-            Some(amount_already_committed) => {
-                let mut amount_to_decrease = requested_withdrawal_amount;
-                let mut new_amount = 0;
-                if requested_withdrawal_amount > amount_already_committed {
-                    amount_to_decrease = amount_already_committed;
-                    result = format!("{} is about to rescind {} and then will not be matching donations to {} anymore", matcher, amount_to_decrease, recipient);
-                } else {
-                    new_amount = amount_already_committed - amount_to_decrease;
-                    result = format!("{} is about to rescind {} and then will only be committed to match donations to {} up to a maximum of {}.", matcher, amount_to_decrease, recipient, new_amount);
-                }
-                // TODO transfer_from_escrow(matcher, amount_to_decrease) // Funds go from escrow back to the matcher.
-                //       .then(escrow_contract_name)
-                //       .function_call<RecipientMatcherAmount>('setMatcherAmount', { recipient, matcher, amount: new_amount }, u128.Zero, XCC_GAS);
-                // }
-            }
-            None => {
-                result = format!("{} does not currently have any funds committed to {}, so funds cannot be rescinded.", matcher, recipient);
-            }
+        let amount_already_committed = matchers_for_this_recipient.get(&matcher).expect(
+            format!(
+            "{} does not currently have any funds committed to {}, so funds cannot be rescinded.",
+            matcher, recipient
+        )
+            .as_str(),
+        );
+        let mut amount_to_decrease = requested_withdrawal_amount;
+        let mut new_amount = 0;
+        if requested_withdrawal_amount > amount_already_committed {
+            amount_to_decrease = amount_already_committed;
+            result =
+                format!(
+                "{} is about to rescind {} and then will not be matching donations to {} anymore",
+                matcher, yocto_to_near_string(amount_to_decrease), recipient
+            );
+        } else {
+            new_amount = amount_already_committed - amount_to_decrease;
+            result = format!("{} is about to rescind {} and then will only be committed to match donations to {} up to a maximum of {}.", matcher, yocto_to_near_string(amount_to_decrease), recipient, yocto_to_near_string(new_amount));
         }
+        // TODO transfer_from_escrow(matcher, amount_to_decrease) // Funds go from escrow back to the matcher.
+        //       .then(escrow_contract_name)
+        //       .function_call<RecipientMatcherAmount>('setMatcherAmount', { recipient, matcher, amount: new_amount }, u128.Zero, XCC_GAS);
+        // }
 
         result
     }
@@ -202,7 +232,7 @@ impl Contract {
         //   const currentCommitment: u128 = matchersForThisRecipient.getSome(matcher);
         //   const matchedAmount: u128 = min(amount, currentCommitment);
         //   const remainingCommitment: u128 = u128.sub(currentCommitment, matchedAmount);
-        //   logging.log(`${matcher} will send a matching donation of ${matchedAmount} to ${recipient}. Remaining commitment: ${remainingCommitment}.`);
+        //   logging.log(`${matcher} will send a matching donation of yocto_to_near_string(${matchedAmount}) to ${recipient}. Remaining commitment: yocto_to_near_string(${remainingCommitment}).`);
         //   _transferFromEscrow(recipient, matchedAmount)
         //     .then(escrowContractName)
         //     .function_call<RecipientMatcherAmount>('setMatcherAmount', { recipient, matcher, amount: remainingCommitment }, u128.Zero, XCC_GAS);
@@ -225,7 +255,7 @@ impl Contract {
         //   assert_self();
         //   assert_single_promise_success();
 
-        //   logging.log(`transferFromEscrowCallbackAfterDonating. ${donor} donated ${amount} to ${recipient}.`);
+        //   logging.log(`transferFromEscrowCallbackAfterDonating. ${donor} donated yocto_to_near_string(${amount}) to ${recipient}.`);
         //   _sendMatchingDonations(recipient, amount, escrowContractName);
     }
 
