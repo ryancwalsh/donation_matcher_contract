@@ -85,17 +85,17 @@ near state $MATCHER1 |  sed -n "s/.*formattedAmount: '\([^\\]*\).*'/\1/p"
 near state $MATCHER2 |  sed -n "s/.*formattedAmount: '\([^\\]*\).*'/\1/p"
 near state $RECIPIENT |  sed -n "s/.*formattedAmount: '\([^\\]*\).*'/\1/p"
 near state $DONOR |  sed -n "s/.*formattedAmount: '\([^\\]*\).*'/\1/p"
-near call $CONTRACT offer_matching_funds "{\"recipient\": \"$RECIPIENT\"}" --accountId $MATCHER1 --deposit 9 --gas=15000000000000
-near call $CONTRACT offer_matching_funds "{\"recipient\": \"$RECIPIENT\"}" --accountId $MATCHER2 --deposit 1 --gas=15000000000000
+near call $CONTRACT offer_matching_funds "{\"recipient\": \"$RECIPIENT\"}" --accountId $MATCHER1 --deposit .3 --gas=15000000000000
+near call $CONTRACT offer_matching_funds "{\"recipient\": \"$RECIPIENT\"}" --accountId $MATCHER2 --deposit .1 --gas=15000000000000
 near view $CONTRACT get_commitments "{\"recipient\": \"$RECIPIENT\"}"
 near state $MATCHER1 |  sed -n "s/.*formattedAmount: '\([^\\]*\).*'/\1/p"
 near state $MATCHER2 |  sed -n "s/.*formattedAmount: '\([^\\]*\).*'/\1/p"
 ```
 
-(The result should reflect the values from above, and the CLI/Explorer should now also show Matcher1's balance as ~11 and Matcher2's balance as ~19.)
+(The result should reflect the values from above, and the CLI/Explorer should now also show Matcher1's balance as ~19.7 and Matcher2's balance as ~19.9.)
 
 ```
-near call $CONTRACT rescindMatchingFunds "{\"recipient\": \"$RECIPIENT\", \"requestedAmount\": \"2000000000000000000000000\"}" --accountId $MATCHER1 --gas=90000000000000
+near call $CONTRACT rescind_matching_funds "{\"recipient\": \"$RECIPIENT\", \"requestedAmount\": \"2000000000000000000000000\"}" --accountId $MATCHER1 --gas=90000000000000
 near view $CONTRACT get_commitments "{\"recipient\": \"$RECIPIENT\"}"
 near state $MATCHER1 |  sed -n "s/.*formattedAmount: '\([^\\]*\).*'/\1/p"
 ```
@@ -119,7 +119,7 @@ Matcher2's balance as still ~19
 Donor's balance is ~16.)
 
 ```
-near call $CONTRACT rescindMatchingFunds "{\"recipient\": \"$RECIPIENT\", \"requestedAmount\": \"9999000000000000000000000000\"}" --accountId $MATCHER1 --gas=90000000000000
+near call $CONTRACT rescind_matching_funds "{\"recipient\": \"$RECIPIENT\", \"requestedAmount\": \"9999000000000000000000000000\"}" --accountId $MATCHER1 --gas=90000000000000
 near state $MATCHER1 |  sed -n "s/.*formattedAmount: '\([^\\]*\).*'/\1/p"
 near view $CONTRACT get_commitments "{\"recipient\": \"$RECIPIENT\"}"
 ```
