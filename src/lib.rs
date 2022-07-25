@@ -1,8 +1,11 @@
 // Using https://github.com/near-examples/docs-examples/blob/4fda29c8cdabd9aba90787c553413db7725d88bd/donation-rs/contract/src/lib.rs as a basis
 
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
-use near_sdk::collections::UnorderedMap;
-use near_sdk::{env, log, near_bindgen, serde_json, AccountId, Balance, PanicOnDefault, Promise};
+use near_sdk::collections::{LookupMap, UnorderedMap};
+use near_sdk::{
+    env, log, near_bindgen, serde_json, AccountId, Balance, BorshStorageKey, CryptoHash,
+    PanicOnDefault, Promise,
+};
 use witgen::witgen;
 
 #[witgen]
@@ -10,9 +13,29 @@ type Amount = Balance;
 type MatcherAccountId = AccountId;
 type MatcherAmountMap = UnorderedMap<MatcherAccountId, Amount>; // https://doc.rust-lang.org/reference/items/type-aliases.html
 type RecipientAccountId = AccountId;
-type MatcherAmountPerRecipient = UnorderedMap<RecipientAccountId, MatcherAmountMap>;
+type MatcherAmountPerRecipient = LookupMap<RecipientAccountId, MatcherAmountMap>;
 
 pub const STORAGE_COST: Amount = 1_000_000_000_000_000_000_000; // ONEDAY: Write this in a more human-readable way, and document how this value was decided.
+
+/// Used to generate a unique prefix in our storage collections (this is to avoid data collisions; see https://stackoverflow.com/questions/65248816/why-should-i-hash-keys-in-the-nearprotocol-unorderedmap)
+pub(crate) fn hash_account_id(account_id: &String) -> CryptoHash {
+    env::sha256_array(account_id.as_bytes())
+}
+
+/// Helper function to convert yoctoNEAR to $NEAR with 4 decimals of precision.
+pub(crate) fn yocto_to_near(yocto: u128) -> f64 {
+    //10^20 yoctoNEAR (1 NEAR would be 10_000). This is to give a precision of 4 decimal places.
+    let formatted_near = yocto / 100_000_000_000_000_000_000;
+    let near = formatted_near as f64 / 10_000_f64;
+
+    near
+}
+
+#[derive(BorshSerialize, BorshStorageKey)]
+enum StorageKey {
+    Recipients,
+    RecipientsInner { hash: CryptoHash },
+}
 
 #[near_bindgen]
 #[derive(BorshDeserialize, BorshSerialize, PanicOnDefault)]
@@ -29,16 +52,15 @@ impl Contract {
     pub fn new() -> Self {
         assert!(!env::state_exists(), "Already initialized");
         Self {
-            recipients: MatcherAmountPerRecipient::new(b"d"),
+            recipients: MatcherAmountPerRecipient::new(StorageKey::Recipients),
         }
     }
 
     fn create_new_matcher_amount_map(recipient: &AccountId) -> MatcherAmountMap {
-        let prefix_string = "r".to_string() + &recipient.to_string(); // ONEDAY: https://stackoverflow.com/questions/65248816/why-should-i-hash-keys-in-the-nearprotocol-unorderedmap
-        let prefix: &[u8] = prefix_string.as_bytes();
-        MatcherAmountMap::new(prefix)
+        MatcherAmountMap::new(StorageKey::RecipientsInner {
+            hash: hash_account_id(&recipient.to_string()),
+        })
     }
-
     fn get_expected_matchers_for_this_recipient(&self, recipient: &AccountId) -> MatcherAmountMap {
         let msg = format!("Could not find any matchers for recipient `{}`", &recipient);
         self.recipients.get(&recipient).expect(&msg)
@@ -53,35 +75,28 @@ impl Contract {
             STORAGE_COST
         );
         let matcher = env::signer_account_id(); // https://docs.near.org/develop/contracts/environment/
-        let mut total = donation_amount;
-        match self.recipients.get(&recipient) {
-            Some(mut matchers_for_this_recipient) => {
-                // If this recipient already has 1 or more matchers...
-                match matchers_for_this_recipient.get(&matcher) {
-                    Some(existing_commitment) => {
-                        // If this same matcher already committed funds to this recipient and is adding more...
-                        log!("This same matcher already committed funds to this recipient and is adding more...");
-                        total = total + existing_commitment;
-                        matchers_for_this_recipient.remove(&matcher);
-                        matchers_for_this_recipient.insert(&matcher, &total);
-                    }
-                    None => {
-                        log!("This recipient already had at least 1 matcher, but this is a new matcher now");
-                        matchers_for_this_recipient.insert(&matcher, &total);
-                    }
-                }
-            }
-            None => {
-                // Else this recipient does not have matchers yet, so we should create a new matcher_amount_map and insert it into the recipients map.
-                let mut matcher_amount_map: MatcherAmountMap =
-                    Self::create_new_matcher_amount_map(&recipient);
-                matcher_amount_map.insert(&matcher, &total);
-                self.recipients.insert(&recipient, &matcher_amount_map);
-            }
-        };
+
+        // Get the current map for the recipient. If it doesn't exist, create one.
+        let mut matchers_for_this_recipient = self
+            .recipients
+            .get(&recipient)
+            .unwrap_or(Self::create_new_matcher_amount_map(&recipient));
+
+        // If the matcher has already donated, increment their donation.
+        let existing_commitment = matchers_for_this_recipient.get(&matcher).unwrap_or(0);
+        near_sdk::log!("existing_commitment {}", yocto_to_near(existing_commitment));
+        let updated_commitment = donation_amount + existing_commitment;
+        near_sdk::log!("updated_commitment {}", yocto_to_near(updated_commitment));
+        matchers_for_this_recipient.insert(&matcher, &updated_commitment);
+
+        self.recipients
+            .insert(&recipient, &matchers_for_this_recipient);
+
         let result = format!(
             "{} is now committed to match donations to {} up to a maximum of {}.",
-            matcher, recipient, total
+            matcher,
+            recipient,
+            yocto_to_near(donation_amount)
         );
         log!(result);
         result
@@ -260,11 +275,5 @@ impl Contract {
                 )
             }
         }
-    }
-
-    #[private] // Public - but only callable by env::current_account_id()
-    pub fn nuke_all_data_in_contract(&mut self) {
-        // TODO: Is there enough security?
-        self.recipients.clear();
     }
 }
