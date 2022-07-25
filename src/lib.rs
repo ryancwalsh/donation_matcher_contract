@@ -109,16 +109,11 @@ impl Contract {
         let matchers = matchers_for_this_recipient.keys_as_vector();
         for (_, matcher) in matchers.iter().enumerate() {
             let existing_commitment = matchers_for_this_recipient.get(&matcher).unwrap();
-            let msg = format!(
-                "{} is committed to match donations to {} up to a maximum of {}.",
-                matcher,
-                recipient,
-                yocto_to_near(existing_commitment)
-            );
+            let msg = format!("{}: {} N,", matcher, yocto_to_near(existing_commitment));
             log!(msg);
             matchers_log.push(msg);
         }
-        matchers_log.join(" ")
+        format!("These matchers are committed to match donations to {} up to a maximum of the following amounts:\n{}",recipient,matchers_log.join("\n"))
     }
 
     pub fn transfer_from_escrow(&self, destination_account: AccountId, amount: Amount) -> Promise {
