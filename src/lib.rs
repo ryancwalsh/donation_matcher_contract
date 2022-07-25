@@ -111,7 +111,9 @@ impl Contract {
             let existing_commitment = matchers_for_this_recipient.get(&matcher).unwrap();
             let msg = format!(
                 "{} is committed to match donations to {} up to a maximum of {}.",
-                matcher, recipient, existing_commitment
+                matcher,
+                recipient,
+                yocto_to_near(existing_commitment)
             );
             log!(msg);
             matchers_log.push(msg);
