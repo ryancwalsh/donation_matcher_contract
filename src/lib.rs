@@ -17,6 +17,8 @@ type MatcherAmountPerRecipient = LookupMap<RecipientAccountId, MatcherAmountMap>
 
 pub const STORAGE_COST: Amount = 1_000_000_000_000_000_000_000; // ONEDAY: Write this in a more human-readable way, and document how this value was decided.
 
+// TODO: Move helper functions to a separate file
+
 /// Used to generate a unique prefix in our storage collections (this is to avoid data collisions; see https://stackoverflow.com/questions/65248816/why-should-i-hash-keys-in-the-nearprotocol-unorderedmap)
 pub(crate) fn hash_account_id(account_id: &String) -> CryptoHash {
     env::sha256_array(account_id.as_bytes())
@@ -71,6 +73,26 @@ impl Contract {
     fn get_expected_matchers_for_this_recipient(&self, recipient: &AccountId) -> MatcherAmountMap {
         let msg = format!("Could not find any matchers for recipient `{}`", &recipient);
         self.recipients.get(&recipient).expect(&msg)
+    }
+
+    fn get_expected_commitment(
+        &self,
+        recipient: &RecipientAccountId,
+        matchers_for_this_recipient: &MatcherAmountMap,
+        matcher: &AccountId,
+    ) -> Amount {
+        let existing_commitment = matchers_for_this_recipient.get(&matcher).expect(
+            format!(
+                "{} does not currently have any funds committed to {}.",
+                matcher, recipient
+            )
+            .as_str(),
+        );
+        near_sdk::log!(
+            "existing_commitment = {}",
+            yocto_to_near_string(existing_commitment)
+        );
+        existing_commitment
     }
 
     #[payable] // Public - People can attach money
@@ -163,17 +185,8 @@ impl Contract {
         let mut matchers_for_this_recipient =
             self.get_expected_matchers_for_this_recipient(&recipient);
         if amount > 0 {
-            let existing_commitment = matchers_for_this_recipient.get(&matcher).expect(
-                format!(
-            "{} does not currently have any funds committed to {}, so funds cannot be rescinded.",
-            matcher, recipient
-        )
-                .as_str(),
-            );
-            near_sdk::log!(
-                "existing_commitment = {}",
-                yocto_to_near_string(existing_commitment)
-            );
+            let existing_commitment =
+                self.get_expected_commitment(&recipient, &matchers_for_this_recipient, &matcher); // TODO Assert that there is a matcher?
             matchers_for_this_recipient.insert(&matcher, &amount);
         } else {
             self.recipients.remove(&matcher);
@@ -191,13 +204,8 @@ impl Contract {
         let matcher = env::signer_account_id();
         let matchers_for_this_recipient = self.get_expected_matchers_for_this_recipient(&recipient);
         let result;
-        let amount_already_committed = matchers_for_this_recipient.get(&matcher).expect(
-            format!(
-            "{} does not currently have any funds committed to {}, so funds cannot be rescinded.",
-            matcher, recipient
-        )
-            .as_str(),
-        );
+        let amount_already_committed =
+            self.get_expected_commitment(&recipient, &matchers_for_this_recipient, &matcher);
         let mut amount_to_decrease = requested_withdrawal_amount;
         let mut new_amount = 0;
         if requested_withdrawal_amount > amount_already_committed {
@@ -220,28 +228,29 @@ impl Contract {
     }
 
     fn send_matching_donation(
+        &self,
+        recipient: &AccountId,
+        matchers_for_this_recipient: &MatcherAmountMap,
         matcher: AccountId,
-        recipient: AccountId,
         amount: Amount,
-        matchers_for_this_recipient: MatcherAmountMap,
     ) {
-        //   const currentCommitment: u128 = matchersForThisRecipient.getSome(matcher);
-        //   const matchedAmount: u128 = min(amount, currentCommitment);
-        //   const remainingCommitment: u128 = u128.sub(currentCommitment, matchedAmount);
-        //   logging.log(`${matcher} will send a matching donation of yocto_to_near_string(${matchedAmount}) to ${recipient}. Remaining commitment: yocto_to_near_string(${remainingCommitment}).`);
-        //   _transferFromEscrow(recipient, matchedAmount)
+        let escrow_contract_name = env::current_account_id(); // https://docs.near.org/develop/contracts/environment/
+        let existing_commitment =
+            self.get_expected_commitment(&recipient, &matchers_for_this_recipient, &matcher);
+        // TODO  const matched_amount: u128 = min(amount, existing_commitment);
+        //   const remaining_commitment: u128 = u128.sub(existing_commitment, matched_amount);
+        //   logging.log(`${matcher} will send a matching donation of yocto_to_near_string(${matched_amount}) to ${recipient}. Remaining commitment: yocto_to_near_string(${remaining_commitment}).`);
+        //   _transferFromEscrow(recipient, matched_amount)
         //     .then(escrowContractName)
-        //     .function_call<RecipientMatcherAmount>('setMatcherAmount', { recipient, matcher, amount: remainingCommitment }, u128.Zero, XCC_GAS);
+        //     .function_call<RecipientMatcherAmount>('setMatcherAmount', { recipient, matcher, amount: remaining_commitment }, u128.Zero, XCC_GAS);
     }
 
-    fn send_matching_donations(&self, recipient: AccountId, amount: Amount) {
+    fn send_matching_donations(&self, recipient: &AccountId, amount: Amount) {
         let matchers_for_this_recipient = self.get_expected_matchers_for_this_recipient(&recipient);
-        let escrow_contract_name = env::current_account_id(); // https://docs.near.org/develop/contracts/environment/
-                                                              //   const matcherKeysForThisRecipient = matchersForThisRecipient.keys();
-                                                              //   for (let i = 0; i < matcherKeysForThisRecipient.length; i += 1) {
-                                                              //     const matcher = matcherKeysForThisRecipient[i];
-                                                              //     _sendMatchingDonation(matcher, recipient, amount, matchersForThisRecipient, escrow_contract_name);
-                                                              //   }
+        let matchers = matchers_for_this_recipient.keys_as_vector();
+        for (_, matcher) in matchers.iter().enumerate() {
+            self.send_matching_donation(recipient, &matchers_for_this_recipient, matcher, amount);
+        }
     }
 
     pub fn transfer_from_escrow_callback_after_donating(
@@ -249,7 +258,7 @@ impl Contract {
         recipient: AccountId,
         amount: Amount,
     ) {
-        //   assert_self();
+        // TODO  assert_self();
         //   assert_single_promise_success();
 
         //   logging.log(`transferFromEscrowCallbackAfterDonating. ${donor} donated yocto_to_near_string(${amount}) to ${recipient}.`);
@@ -257,10 +266,10 @@ impl Contract {
     }
 
     pub fn donate(recipient: AccountId) {
-        //   const amount = Context.attachedDeposit;
+        // TODO  const amount = Context.attachedDeposit;
         //   assert(u128.gt(amount, u128.Zero), '`attachedDeposit` must be > 0.');
         //   const donor = Context.sender;
-        //   const escrowContractName = Context.contractName;
+        // let escrow_contract_name = env::current_account_id(); // https://docs.near.org/develop/contracts/environment/
         //   const prepaidGas = Context.prepaidGas;
         //   const gasAlreadyBurned = Context.usedGas;
         //   const gasToBeBurnedDuringTransferFromEscrow = XCC_GAS;
