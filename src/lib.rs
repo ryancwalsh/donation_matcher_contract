@@ -1,5 +1,6 @@
 // Using https://github.com/near-examples/docs-examples/blob/4fda29c8cdabd9aba90787c553413db7725d88bd/donation-rs/contract/src/lib.rs as a basis
 
+use helpers::generic::{did_promise_succeed, hash_account_id};
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use near_sdk::collections::{LookupMap, UnorderedMap};
 use near_sdk::{
@@ -7,6 +8,10 @@ use near_sdk::{
     PanicOnDefault, Promise,
 };
 use witgen::witgen;
+
+mod helpers;
+use crate::generic::yocto_to_near_string;
+pub use crate::helpers::generic;
 
 #[witgen]
 type Amount = Balance;
@@ -17,28 +22,6 @@ type MatcherAmountPerRecipient = LookupMap<RecipientAccountId, MatcherAmountMap>
 
 pub const STORAGE_COST: Amount = 1_000_000_000_000_000_000_000; // ONEDAY: Write this in a more human-readable way, and document how this value was decided.
 pub const GAS_FOR_ACCOUNT_CALLBACK: Gas = Gas(20_000_000_000_000); // gas for cross-contract calls, ~5 Tgas (teragas = 1e12) per "hop"
-
-// TODO: Move helper functions to a separate file
-
-/// Used to generate a unique prefix in our storage collections (this is to avoid data collisions; see https://stackoverflow.com/questions/65248816/why-should-i-hash-keys-in-the-nearprotocol-unorderedmap)
-pub(crate) fn hash_account_id(account_id: &String) -> CryptoHash {
-    env::sha256_array(account_id.as_bytes())
-}
-
-/// Helper function to convert yoctoNEAR to $NEAR with 4 decimals of precision.
-pub(crate) fn yocto_to_near(yocto: u128) -> f64 {
-    //10^20 yoctoNEAR (1 NEAR would be 10_000). This is to give a precision of 4 decimal places.
-    let formatted_near = yocto / 100_000_000_000_000_000_000;
-    let near = formatted_near as f64 / 10_000_f64;
-
-    near
-}
-
-/// Helper function to convert yoctoNEAR to $NEAR with 4 decimals of precision.
-pub(crate) fn yocto_to_near_string(yocto: u128) -> String {
-    let numeric = yocto_to_near(yocto);
-    numeric.to_string() + &" Ⓝ".to_string()
-}
 
 #[derive(BorshSerialize, BorshStorageKey)]
 enum StorageKey {
@@ -65,17 +48,20 @@ impl Contract {
         }
     }
 
+    #[private]
     fn create_new_matcher_amount_map(recipient: &AccountId) -> MatcherAmountMap {
         MatcherAmountMap::new(StorageKey::RecipientsInner {
             hash: hash_account_id(&recipient.to_string()),
         })
     }
 
+    #[private]
     fn get_expected_matchers_for_this_recipient(&self, recipient: &AccountId) -> MatcherAmountMap {
         let msg = format!("Could not find any matchers for recipient `{}`", &recipient);
         self.recipients.get(&recipient).expect(&msg)
     }
 
+    #[private]
     fn get_expected_commitment(
         &self,
         recipient: &RecipientAccountId,
@@ -163,13 +149,14 @@ impl Contract {
             destination_account,
             yocto_to_near_string(amount)
         );
-        Promise::new(destination_account.clone()).transfer(amount)
+        Promise::new(destination_account.clone()).transfer(amount) // https://www.near-sdk.io/cross-contract/callbacks#calculator-example uses .clone()
     }
 
     /**
      * Gets called via `rescind_matching_funds` and `send_matching_donation`.
      */
-    pub fn set_matcher_amount(
+    #[private]
+    fn set_matcher_amount(
         &mut self,
         recipient: &AccountId,
         matcher: &AccountId,
@@ -196,6 +183,19 @@ impl Contract {
         matchers_for_this_recipient
     }
 
+    #[private] // Public - but only callable by env::current_account_id()
+    pub fn on_rescind_matching_funds(
+        &mut self,
+        recipient: &AccountId,
+        matcher: AccountId,
+        original_amount: Amount,
+    ) -> () {
+        if !did_promise_succeed() {
+            // If transfer failed, change the state back to what it was:
+            self.set_matcher_amount(&recipient, &matcher, original_amount);
+        }
+    }
+
     pub fn rescind_matching_funds(
         &mut self,
         recipient: &AccountId,
@@ -203,9 +203,9 @@ impl Contract {
     ) -> String {
         let matcher = env::signer_account_id();
         let matchers_for_this_recipient = self.get_expected_matchers_for_this_recipient(&recipient);
-        let result;
         let amount_already_committed =
             self.get_expected_commitment(&recipient, &matchers_for_this_recipient, &matcher);
+        let result;
         let mut amount_to_decrease = requested_withdrawal_amount;
         let mut new_amount = 0;
         if requested_withdrawal_amount > amount_already_committed {
@@ -213,32 +213,35 @@ impl Contract {
             result =
                 format!(
                 "{} is about to rescind {} and then will not be matching donations to {} anymore",
-                matcher, yocto_to_near_string(amount_to_decrease), recipient
+                &matcher, yocto_to_near_string(amount_to_decrease), recipient
             );
         } else {
             new_amount = amount_already_committed - amount_to_decrease;
-            result = format!("{} is about to rescind {} and then will only be committed to match donations to {} up to a maximum of {}.", matcher, yocto_to_near_string(amount_to_decrease), recipient, yocto_to_near_string(new_amount));
+            result = format!("{} is about to rescind {} and then will only be committed to match donations to {} up to a maximum of {}.", &matcher, yocto_to_near_string(amount_to_decrease), recipient, yocto_to_near_string(new_amount));
         }
+        self.set_matcher_amount(&recipient, &matcher, new_amount);
         self.transfer_from_escrow(&matcher, amount_to_decrease) // Funds go from escrow back to the matcher.
             .then(
                 Self::ext(env::current_account_id()) // escrow contract name
                     .with_static_gas(GAS_FOR_ACCOUNT_CALLBACK)
-                    .set_matcher_amount(&recipient, &matcher, new_amount),
+                    .on_rescind_matching_funds(&recipient, matcher, amount_already_committed),
             );
         result
     }
 
+    // Only gets called internally.
+    #[private]
     fn send_matching_donation(
         &self,
         recipient: &AccountId,
         matchers_for_this_recipient: &MatcherAmountMap,
         matcher: AccountId,
         amount: Amount,
-    ) {
+    ) -> () {
         let escrow_contract_name = env::current_account_id(); // https://docs.near.org/develop/contracts/environment/
         let existing_commitment =
             self.get_expected_commitment(&recipient, &matchers_for_this_recipient, &matcher);
-        // TODO  const matched_amount: u128 = min(amount, existing_commitment);
+        // TODO  let matched_amount: u128 = vec![amount, existing_commitment].iter().min();
         //   const remaining_commitment: u128 = u128.sub(existing_commitment, matched_amount);
         //   logging.log(`${matcher} will send a matching donation of yocto_to_near_string(${matched_amount}) to ${recipient}. Remaining commitment: yocto_to_near_string(${remaining_commitment}).`);
         //   _transfer_from_escrow(recipient, matched_amount)
@@ -246,24 +249,14 @@ impl Contract {
         //     .function_call<RecipientMatcherAmount>('set_matcher_amount', { recipient, matcher, amount: remainingCommitment }, u128.Zero, XCC_GAS);
     }
 
+    // Only gets called internally.
+    #[private]
     fn send_matching_donations(&self, recipient: &AccountId, amount: Amount) {
         let matchers_for_this_recipient = self.get_expected_matchers_for_this_recipient(&recipient);
         let matchers = matchers_for_this_recipient.keys_as_vector();
         for (_, matcher) in matchers.iter().enumerate() {
             self.send_matching_donation(recipient, &matchers_for_this_recipient, matcher, amount);
         }
-    }
-
-    pub fn transfer_from_escrow_callback_after_donating(
-        donor: AccountId,
-        recipient: AccountId,
-        amount: Amount,
-    ) {
-        // TODO  assert_self();
-        //   assert_single_promise_success();
-
-        //   logging.log(`transfer_from_escrow_callback_after_donating. ${donor} donated yocto_to_near_string(${amount}) to ${recipient}.`);
-        //   _sendMatchingDonations(recipient, amount, escrowContractName);
     }
 
     pub fn donate(recipient: AccountId) {
