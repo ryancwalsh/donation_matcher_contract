@@ -32,8 +32,8 @@ pub mod generic {
         // TODO: Audit
         let precision_multiplier = u128::pow(10, decimal_places);
         let formatted_near = amount_in_yocto * precision_multiplier / YOCTO_FACTOR;
-        let near = formatted_near / precision_multiplier;
-        near as f64
+        let near = formatted_near as f64 / precision_multiplier as f64;
+        near
     }
 
     // TODO: Remove
