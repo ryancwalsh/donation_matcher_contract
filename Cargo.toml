@@ -9,6 +9,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 near-sdk = "4.0.0"
+near-units = "0.2.0"
 uint = { version = "0.8.3", default-features = false }
 witgen = "0.14.0"
 

@@ -9,6 +9,7 @@ use near_sdk::{
 };
 use std::cmp;
 use witgen::witgen;
+use near_units::{near};
 
 mod helpers;
 use crate::generic::yocto_to_near_string;
@@ -78,7 +79,7 @@ impl Contract {
         );
         near_sdk::log!(
             "existing_commitment = {}",
-            yocto_to_near_string(existing_commitment)
+            near::to_human(existing_commitment)
         );
         existing_commitment
     }
@@ -177,7 +178,7 @@ impl Contract {
         let mut matchers_for_this_recipient =
             self.get_expected_matchers_for_this_recipient(&recipient);
         if amount > 0 {
-            let existing_commitment =
+            let _existing_commitment =
                 self.get_expected_commitment(&recipient, &matchers_for_this_recipient, &matcher); // ONEDAY Assert that there is a matcher?
             matchers_for_this_recipient.insert(&matcher, &amount);
         } else {
@@ -287,7 +288,7 @@ impl Contract {
     fn send_matching_donations(&mut self, recipient: &AccountId, amount: Amount) {
         let matchers_for_this_recipient = self.get_expected_matchers_for_this_recipient(&recipient);
         let matchers = matchers_for_this_recipient.keys_as_vector();
-        for (_, matcher) in matchers.iter().enumerate() {
+        for matcher in matchers.iter() {
             self.send_matching_donation(recipient, &matchers_for_this_recipient, matcher, amount);
         }
     }
