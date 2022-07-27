@@ -390,4 +390,10 @@ mod tests {
         assert_eq!(yocto_to_near_string(10_000_000_000_000_000_000_000), "0.01 Ⓝ");
         assert_eq!(yocto_to_near_string(700_000_000_000_000_000_000), "0.0007 Ⓝ");
     }
+
+    #[test]
+    fn test_near_string_to_yocto() {
+        assert_eq!(near_string_to_yocto("3.997 Ⓝ".to_string()), 3_997_000_000_000_000_000_000_000);
+        assert_eq!(near_string_to_yocto("0.018 Ⓝ".to_string()), 18_000_000_000_000_000_000_000);
+    }
 }

@@ -3,7 +3,7 @@
 pub mod generic {
     use near_sdk::{env, log, CryptoHash, PromiseResult};
 
-    pub type FormattedNearString = String; // (commas, underscores, and 'Ⓝ' are acceptable and will be ignored)
+    pub type FormattedNearString = String; // (commas, underscores, spaces, and 'Ⓝ' are acceptable and will be ignored)
 
     const YOCTO_FACTOR: u128 = u128::pow(10, 24); // https://nomicon.io/Economics/Economic
     pub const DEFAULT_DECIMAL_PLACES: u32 = 4;
@@ -48,10 +48,14 @@ pub mod generic {
         let cleaned = near_string
             .replace(",", "")
             .replace("_", "")
+            .replace(" ", "")
             .replace("Ⓝ", "");
         // TODO: Audit
         let near: f64 = cleaned.parse().expect("Could not convert NEAR from string to yoctoNEAR integer. Please check the formatting of your string.");
-        let yocto = near as u128 * YOCTO_FACTOR;
+        let precision = u128::pow(10, DEFAULT_DECIMAL_PLACES);
+        let padded = (near * precision as f64) as u128 * YOCTO_FACTOR;
+        near_sdk::log!("precision={}, near={}, padded={}", precision, near, padded);
+        let yocto = padded as u128 / precision;
         near_sdk::log!(
             "near_string_to_yocto converted {} (FormattedNear) to {} (yoctoNEAR)",
             near_string,
