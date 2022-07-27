@@ -32,24 +32,24 @@ pub mod generic {
         // TODO: Audit
         let precision_multiplier = u128::pow(10, decimal_places);
         let formatted_near = amount_in_yocto * precision_multiplier / YOCTO_FACTOR;
-        let near = formatted_near as f64 / precision_multiplier as f64;
-        near
+        
+        formatted_near as f64 / precision_multiplier as f64
     }
 
     /// Helper function to convert yoctoNEAR to $NEAR with _ decimals of precision.
     pub(crate) fn yocto_to_near_string(yocto: u128) -> String {
         let numeric = yocto_to_near(yocto, DEFAULT_DECIMAL_PLACES);
         // ONEDAY: Add underscores or commas as thousands separators
-        numeric.to_string() + &" Ⓝ".to_string()
+        numeric.to_string() + " Ⓝ"
     }
 
     /// Convert $NEAR to yoctoNEAR.
     pub(crate) fn near_string_to_yocto(near_string: FormattedNearString) -> u128 {
         let cleaned = near_string
-            .replace(",", "")
-            .replace("_", "")
-            .replace(" ", "")
-            .replace("Ⓝ", "");
+            .replace(',', "")
+            .replace('_', "")
+            .replace(' ', "")
+            .replace('Ⓝ', "");
         // TODO: Audit
         let near: f64 = cleaned.parse().expect("Could not convert NEAR from string to yoctoNEAR integer. Please check the formatting of your string.");
         let precision = u128::pow(10, DEFAULT_DECIMAL_PLACES);

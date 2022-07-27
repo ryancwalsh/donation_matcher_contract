@@ -60,7 +60,7 @@ impl Contract {
     #[private]
     fn get_expected_matchers_for_this_recipient(&self, recipient: &AccountId) -> MatcherAmountMap {
         let msg = format!("Could not find any matchers for recipient `{}`", &recipient);
-        self.recipients.get(&recipient).expect(&msg)
+        self.recipients.get(recipient).expect(&msg)
     }
 
     #[private]
@@ -70,13 +70,8 @@ impl Contract {
         matchers_for_this_recipient: &MatcherAmountMap,
         matcher: &AccountId,
     ) -> Amount {
-        let existing_commitment = matchers_for_this_recipient.get(&matcher).expect(
-            format!(
-                "{} does not currently have any funds committed to {}.",
-                matcher, recipient
-            )
-            .as_str(),
-        );
+        let existing_commitment = matchers_for_this_recipient.get(matcher).unwrap_or_else(|| panic!("{} does not currently have any funds committed to {}.",
+                matcher, recipient));
         near_sdk::log!(
             "existing_commitment = {}",
             near::to_human(existing_commitment)
@@ -176,13 +171,13 @@ impl Contract {
         );
         // ONEDAY assert_self(); assert_single_promise_success();
         let mut matchers_for_this_recipient =
-            self.get_expected_matchers_for_this_recipient(&recipient);
+            self.get_expected_matchers_for_this_recipient(recipient);
         if amount > 0 {
             let _existing_commitment =
-                self.get_expected_commitment(&recipient, &matchers_for_this_recipient, &matcher); // ONEDAY Assert that there is a matcher?
-            matchers_for_this_recipient.insert(&matcher, &amount);
+                self.get_expected_commitment(recipient, &matchers_for_this_recipient, matcher); // ONEDAY Assert that there is a matcher?
+            matchers_for_this_recipient.insert(matcher, &amount);
         } else {
-            self.recipients.remove(&matcher);
+            self.recipients.remove(matcher);
         }
 
         matchers_for_this_recipient
@@ -194,10 +189,10 @@ impl Contract {
         recipient: &AccountId,
         matcher: AccountId,
         original_amount: Amount,
-    ) -> () {
+    ) {
         if !did_promise_succeed() {
             // If transfer failed, change the state back to what it was:
-            self.set_matcher_amount(&recipient, &matcher, original_amount);
+            self.set_matcher_amount(recipient, &matcher, original_amount);
         }
     }
 
@@ -208,9 +203,9 @@ impl Contract {
         requested_withdrawal_amount: generic::FormattedNearString,
     ) -> String {
         let matcher = env::signer_account_id();
-        let matchers_for_this_recipient = self.get_expected_matchers_for_this_recipient(&recipient);
+        let matchers_for_this_recipient = self.get_expected_matchers_for_this_recipient(recipient);
         let amount_already_committed =
-            self.get_expected_commitment(&recipient, &matchers_for_this_recipient, &matcher);
+            self.get_expected_commitment(recipient, &matchers_for_this_recipient, &matcher);
         let requested_withdrawal_amount_yocto: Amount = near_string_to_yocto(requested_withdrawal_amount);
         let result;
         let mut amount_to_decrease = requested_withdrawal_amount_yocto;
@@ -232,12 +227,12 @@ impl Contract {
                  yocto_to_near_string(new_amount)
             );
         }
-        self.set_matcher_amount(&recipient, &matcher, new_amount);
+        self.set_matcher_amount(recipient, &matcher, new_amount);
         self.transfer_from_escrow(&matcher, amount_to_decrease) // Funds go from escrow back to the matcher.
             .then(
                 Self::ext(env::current_account_id()) // escrow contract name
                     .with_static_gas(GAS_FOR_ACCOUNT_CALLBACK)
-                    .on_rescind_matching_funds(&recipient, matcher, amount_already_committed),
+                    .on_rescind_matching_funds(recipient, matcher, amount_already_committed),
             );
         result
     }
@@ -248,10 +243,10 @@ impl Contract {
         recipient: &AccountId,
         matcher: AccountId,
         original_amount: Amount,
-    ) -> () {
+    ) {
         if !did_promise_succeed() {
             // If transfer failed, change the state back to what it was:
-            self.set_matcher_amount(&recipient, &matcher, original_amount);
+            self.set_matcher_amount(recipient, &matcher, original_amount);
         }
     }
 
@@ -263,9 +258,9 @@ impl Contract {
         matchers_for_this_recipient: &MatcherAmountMap,
         matcher: AccountId,
         amount: Amount,
-    ) -> () {
+    ) {
         let existing_commitment =
-            self.get_expected_commitment(&recipient, &matchers_for_this_recipient, &matcher);
+            self.get_expected_commitment(recipient, matchers_for_this_recipient, &matcher);
         let matched_amount: u128 = cmp::min(amount, existing_commitment);
         let remaining_commitment: u128 = existing_commitment - matched_amount;
         near_sdk::log!(
@@ -275,18 +270,18 @@ impl Contract {
             &recipient,
             yocto_to_near_string(remaining_commitment)
         );
-        self.set_matcher_amount(&recipient, &matcher, matched_amount);
-        self.transfer_from_escrow(&recipient, matched_amount).then(
+        self.set_matcher_amount(recipient, &matcher, matched_amount);
+        self.transfer_from_escrow(recipient, matched_amount).then(
             Self::ext(env::current_account_id()) // escrow contract name
                 .with_static_gas(GAS_FOR_ACCOUNT_CALLBACK)
-                .on_send_matching_donation(&recipient, matcher, existing_commitment),
+                .on_send_matching_donation(recipient, matcher, existing_commitment),
         );
     }
 
     // Only gets called internally.
     #[private]
     fn send_matching_donations(&mut self, recipient: &AccountId, amount: Amount) {
-        let matchers_for_this_recipient = self.get_expected_matchers_for_this_recipient(&recipient);
+        let matchers_for_this_recipient = self.get_expected_matchers_for_this_recipient(recipient);
         let matchers = matchers_for_this_recipient.keys_as_vector();
         for matcher in matchers.iter() {
             self.send_matching_donation(recipient, &matchers_for_this_recipient, matcher, amount);
@@ -299,7 +294,7 @@ impl Contract {
         // recipient: &AccountId,
         // matcher: AccountId,
         // original_amount: Amount,
-    ) -> () {
+    ) {
         if !did_promise_succeed() {
             // If transfer failed, change the state back to what it was:
             // TODO Do it for every matcher of this recipient
@@ -335,7 +330,7 @@ impl Contract {
     }
 
     #[private] // Public - but only callable by env::current_account_id()
-    pub fn delete_all_matches_associated_with_recipient(&mut self, recipient: AccountId) -> () {
+    pub fn delete_all_matches_associated_with_recipient(&mut self, recipient: AccountId) {
         // Since self.recipients is a LookupMap (not iterable), there is no clear() function available for instantly deleting all keys.
         // ONEDAY assert_self();
             let mut matchers_for_this_recipient: MatcherAmountMap =
@@ -346,7 +341,7 @@ impl Contract {
             to_remove.push(matcher); 
         }
         for key in to_remove.iter(){// https://stackoverflow.com/a/45724774/470749
-            matchers_for_this_recipient.remove(&key); // If not for this loop, the contract state would be messed up, and we would later get "The collection is an inconsistent state" errors.
+            matchers_for_this_recipient.remove(key); // If not for this loop, the contract state would be messed up, and we would later get "The collection is an inconsistent state" errors.
             near_sdk::log!("Removed {} from {}", &key, &recipient);
         }
         self.recipients.remove(&recipient); // See comment above about why removing each inner map is also necessary.
@@ -356,7 +351,7 @@ impl Contract {
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod tests {
     use near_sdk::test_utils::{accounts, VMContextBuilder};
-    use near_sdk::{testing_env, Balance};
+    
 
     use crate::generic::{yocto_to_near_string};
 
