@@ -6,7 +6,7 @@ pub mod generic {
     pub type FormattedNearString = String; // (commas, underscores, and 'Ⓝ' are acceptable and will be ignored)
 
     const YOCTO_FACTOR: u128 = u128::pow(10, 24); // https://nomicon.io/Economics/Economic
-    pub const DEFAULT_DECIMAL_PLACES: u8 = 4;
+    pub const DEFAULT_DECIMAL_PLACES: u32 = 4;
 
     /// Aux functions to interact with the validator
     // https://docs.near.org/develop/contracts/crosscontract#snippet-sending-information
@@ -28,12 +28,30 @@ pub mod generic {
     }
 
     /// Helper function to convert yoctoNEAR to $NEAR with _ decimals of precision.
-    pub(crate) fn yocto_to_near(amount_in_yocto: u128, decimal_places: u8) -> f64 {
+    pub(crate) fn yocto_to_near(amount_in_yocto: u128, decimal_places: u32) -> f64 {
         // TODO: Audit
-        let mult = u128::pow(10, decimal_places as u32);
-        let formatted_near = amount_in_yocto as f64 / (YOCTO_FACTOR / mult) as f64;
-        let near = formatted_near / mult as f64;
+        let precision_multiplier = u128::pow(10, decimal_places);
+        let formatted_near = amount_in_yocto * precision_multiplier / YOCTO_FACTOR;
+        let near = formatted_near / precision_multiplier;
+        near as f64
+    }
+
+    // TODO: Remove
+    /// Helper function to convert yoctoNEAR to $NEAR with 4 decimals of precision.
+    pub(crate) fn old_yocto_to_near(yocto: u128) -> f64 {
+        //10^20 yoctoNEAR (1 NEAR would be 10_000). This is to give a precision of 4 decimal places.
+        let formatted_near = yocto / 100_000_000_000_000_000_000;
+        let near = formatted_near as f64 / 10_000_f64;
+
         near
+    }
+
+    // TODO: Remove
+    /// Helper function to convert yoctoNEAR to $NEAR with _ decimals of precision.
+    pub(crate) fn old_yocto_to_near_string(yocto: u128) -> String {
+        let numeric = old_yocto_to_near(yocto);
+        // ONEDAY: Add underscores or commas as thousands separators
+        numeric.to_string() + &" Ⓝ".to_string()
     }
 
     /// Helper function to convert yoctoNEAR to $NEAR with _ decimals of precision.
