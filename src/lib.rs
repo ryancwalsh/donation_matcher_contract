@@ -280,20 +280,41 @@ impl Contract {
         }
     }
 
+    #[private] // Public - but only callable by env::current_account_id()
+    pub fn on_donate(
+        &mut self,
+        recipient: &AccountId,
+        matcher: AccountId,
+        original_amount: Amount,
+    ) -> () {
+        if !did_promise_succeed() {
+            // If transfer failed, change the state back to what it was:
+            // TODO Do it for every matcher of this recipient
+            self.set_matcher_amount(&recipient, &matcher, original_amount);
+        }
+    }
+
+    #[payable] // Public - People can attach money
     pub fn donate(recipient: AccountId) {
-        // TODO  const amount = Context.attachedDeposit;
-        //   assert(u128.gt(amount, u128.Zero), '`attachedDeposit` must be > 0.');
-        //   const donor = Context.sender;
-        // let escrow_contract_name = env::current_account_id(); // https://docs.near.org/develop/contracts/environment/
-        //   const prepaidGas = Context.prepaidGas;
-        //   const gasAlreadyBurned = Context.usedGas;
-        //   const gasToBeBurnedDuringTransferFromEscrow = XCC_GAS;
-        //   const remainingGas = prepaidGas - gasAlreadyBurned - gasToBeBurnedDuringTransferFromEscrow;
-        //   logging.log(
-        //     `prepaidGas=${prepaidGas}, gasAlreadyBurned=${gasAlreadyBurned}, gasToBeBurnedDuringTransferFromEscrow=${gasToBeBurnedDuringTransferFromEscrow}, remainingGas=${remainingGas}`,
-        //   );
+        let donation_amount: Amount = env::attached_deposit();
+        assert!(donation_amount > 0, "Attaching some yoctoNEAR is required.");
+        let donor = env::signer_account_id(); // https://docs.near.org/develop/contracts/environment/
+        let prepaid_gas = env::prepaid_gas();
+        let gas_already_burned = env::used_gas();
+        let gas_to_be_burned_during_transfer_from_escrow = GAS_FOR_ACCOUNT_CALLBACK;
+        let remaining_gas =
+            prepaid_gas - gas_already_burned - gas_to_be_burned_during_transfer_from_escrow;
+        near_sdk::log!(
+            "prepaid_gas={:?}, gas_already_burned={:?}, gas_to_be_burned_during_transfer_from_escrow={:?}, remaining_gas={:?}",
+            prepaid_gas,
+            gas_already_burned,
+            gas_to_be_burned_during_transfer_from_escrow,  
+
+            remaining_gas
+          );
+        // TODO optimistically change state, then do the actual transfer, then in the callback undo the state change if the transfer failed
         //   _transfer_from_escrow(recipient, amount) // Immediately pass it along.
-        //     .then(escrowContractName)
+        //     .then(env::current_account_id())// escrow contract name
         //     .function_call<DRAE>('transfer_from_escrow_callback_after_donating', { donor, recipient, amount, escrowContractName }, u128.Zero, remainingGas);
     }
 
