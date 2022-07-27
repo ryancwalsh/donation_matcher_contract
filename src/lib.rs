@@ -337,7 +337,18 @@ impl Contract {
     pub fn delete_all_matches_associated_with_recipient(&mut self, recipient: AccountId) -> () {
         // Since self.recipients is a LookupMap (not iterable), there is no clear() function available for instantly deleting all keys.
         // TODO assert_self();
-      self.recipients.remove(&recipient);
+            let mut matchers_for_this_recipient: MatcherAmountMap =
+            self.get_expected_matchers_for_this_recipient(&recipient);
+        let matchers = matchers_for_this_recipient.keys_as_vector();
+        let mut to_remove = Vec::new();
+        for (_, matcher) in matchers.iter().enumerate() {
+            to_remove.push(matcher); 
+        }
+        for key in to_remove.iter(){// https://stackoverflow.com/a/45724774/470749
+            matchers_for_this_recipient.remove(&key); // If not for this loop, the contract state would be messed up, and we would later get "The collection is an inconsistent state" errors.
+            near_sdk::log!("Removed {} from {}", &key, &recipient);
+        }
+        self.recipients.remove(&recipient); // See comment above about why removing each inner map is also necessary.
     }
 }
 
