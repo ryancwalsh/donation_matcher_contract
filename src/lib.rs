@@ -7,6 +7,7 @@ use near_sdk::{
     env, log, near_bindgen, serde_json, AccountId, Balance, BorshStorageKey, CryptoHash, Gas,
     PanicOnDefault, Promise,
 };
+use std::cmp;
 use witgen::witgen;
 
 mod helpers;
@@ -168,8 +169,7 @@ impl Contract {
             &matcher,
             &yocto_to_near_string(amount)
         );
-        // TODO assert_self();
-        // TODO assert_single_promise_success();
+        // TODO assert_self(); assert_single_promise_success();
         let mut matchers_for_this_recipient =
             self.get_expected_matchers_for_this_recipient(&recipient);
         if amount > 0 {
@@ -229,29 +229,50 @@ impl Contract {
         result
     }
 
-    // Only gets called internally.
+    #[private] // Public - but only callable by env::current_account_id()
+    pub fn on_send_matching_donation(
+        &mut self,
+        recipient: &AccountId,
+        matcher: AccountId,
+        original_amount: Amount,
+    ) -> () {
+        if !did_promise_succeed() {
+            // If transfer failed, change the state back to what it was:
+            self.set_matcher_amount(&recipient, &matcher, original_amount);
+        }
+    }
+
+    // Only gets called internally by send_matching_donations.
     #[private]
     fn send_matching_donation(
-        &self,
+        &mut self,
         recipient: &AccountId,
         matchers_for_this_recipient: &MatcherAmountMap,
         matcher: AccountId,
         amount: Amount,
     ) -> () {
-        let escrow_contract_name = env::current_account_id(); // https://docs.near.org/develop/contracts/environment/
         let existing_commitment =
             self.get_expected_commitment(&recipient, &matchers_for_this_recipient, &matcher);
-        // TODO  let matched_amount: u128 = vec![amount, existing_commitment].iter().min();
-        //   const remaining_commitment: u128 = u128.sub(existing_commitment, matched_amount);
-        //   logging.log(`${matcher} will send a matching donation of yocto_to_near_string(${matched_amount}) to ${recipient}. Remaining commitment: yocto_to_near_string(${remaining_commitment}).`);
-        //   _transfer_from_escrow(recipient, matched_amount)
-        //     .then(escrowContractName)
-        //     .function_call<RecipientMatcherAmount>('set_matcher_amount', { recipient, matcher, amount: remainingCommitment }, u128.Zero, XCC_GAS);
+        let matched_amount: u128 = cmp::min(amount, existing_commitment);
+        let remaining_commitment: u128 = existing_commitment - matched_amount;
+        near_sdk::log!(
+            "{} will send a matching donation of {} to {}. Remaining commitment: {}.",
+            &matcher,
+            yocto_to_near_string(matched_amount),
+            &recipient,
+            yocto_to_near_string(remaining_commitment)
+        );
+        self.set_matcher_amount(&recipient, &matcher, matched_amount);
+        self.transfer_from_escrow(&recipient, matched_amount).then(
+            Self::ext(env::current_account_id()) // escrow contract name
+                .with_static_gas(GAS_FOR_ACCOUNT_CALLBACK)
+                .on_send_matching_donation(&recipient, matcher, existing_commitment),
+        );
     }
 
     // Only gets called internally.
     #[private]
-    fn send_matching_donations(&self, recipient: &AccountId, amount: Amount) {
+    fn send_matching_donations(&mut self, recipient: &AccountId, amount: Amount) {
         let matchers_for_this_recipient = self.get_expected_matchers_for_this_recipient(&recipient);
         let matchers = matchers_for_this_recipient.keys_as_vector();
         for (_, matcher) in matchers.iter().enumerate() {
