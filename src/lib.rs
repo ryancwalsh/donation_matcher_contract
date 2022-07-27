@@ -4,7 +4,7 @@ use helpers::generic::{did_promise_succeed, hash_account_id, near_string_to_yoct
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use near_sdk::collections::{LookupMap, UnorderedMap};
 use near_sdk::{
-    env, log, near_bindgen, serde_json, AccountId, Balance, BorshStorageKey, CryptoHash, Gas,
+    env, log, near_bindgen, AccountId, Balance, BorshStorageKey, CryptoHash, Gas,
     PanicOnDefault, Promise,
 };
 use std::cmp;
@@ -36,7 +36,7 @@ pub struct Contract {
     pub recipients: MatcherAmountPerRecipient, // https://docs.near.org/concepts/storage/data-storage#unorderedmap The outer key-value pair is the "recipient: matcher-amount-map". The inner map (matcher amount) has a key-value pair of "matcher: amount".
 }
 
-// TODO: Review each part of this repo to ensure that it can scale to large amounts of data.
+// ONEDAY: Review each part of this repo to ensure that it can scale to large amounts of data.
 
 #[near_bindgen]
 impl Contract {
@@ -148,7 +148,7 @@ impl Contract {
     }
 
     pub fn transfer_from_escrow(&self, destination_account: &AccountId, amount: Amount) -> Promise {
-        // TODO: Consider subtracting storage cost like https://github.com/near-examples/docs-examples/blob/4fda29c8cdabd9aba90787c553413db7725d88bd/donation-rs/contract/src/lib.rs#L51
+        // ONEDAY: Consider subtracting storage cost like https://github.com/near-examples/docs-examples/blob/4fda29c8cdabd9aba90787c553413db7725d88bd/donation-rs/contract/src/lib.rs#L51
         log!(
             "transfer_from_escrow destination_account: {}, amount: {}",
             destination_account,
@@ -173,12 +173,12 @@ impl Contract {
             &matcher,
             &yocto_to_near_string(amount)
         );
-        // TODO assert_self(); assert_single_promise_success();
+        // ONEDAY assert_self(); assert_single_promise_success();
         let mut matchers_for_this_recipient =
             self.get_expected_matchers_for_this_recipient(&recipient);
         if amount > 0 {
             let existing_commitment =
-                self.get_expected_commitment(&recipient, &matchers_for_this_recipient, &matcher); // TODO Assert that there is a matcher?
+                self.get_expected_commitment(&recipient, &matchers_for_this_recipient, &matcher); // ONEDAY Assert that there is a matcher?
             matchers_for_this_recipient.insert(&matcher, &amount);
         } else {
             self.recipients.remove(&matcher);
@@ -336,7 +336,7 @@ impl Contract {
     #[private] // Public - but only callable by env::current_account_id()
     pub fn delete_all_matches_associated_with_recipient(&mut self, recipient: AccountId) -> () {
         // Since self.recipients is a LookupMap (not iterable), there is no clear() function available for instantly deleting all keys.
-        // TODO assert_self();
+        // ONEDAY assert_self();
             let mut matchers_for_this_recipient: MatcherAmountMap =
             self.get_expected_matchers_for_this_recipient(&recipient);
         let matchers = matchers_for_this_recipient.keys_as_vector();
