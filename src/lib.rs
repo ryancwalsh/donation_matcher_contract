@@ -333,32 +333,11 @@ impl Contract {
         
     }
 
-    pub fn delete_all_matches_associated_with_recipient(&mut self, recipient: AccountId) -> String {
+    #[private] // Public - but only callable by env::current_account_id()
+    pub fn delete_all_matches_associated_with_recipient(&mut self, recipient: AccountId) -> () {
+        // Since self.recipients is a LookupMap (not iterable), there is no clear() function available for instantly deleting all keys.
         // TODO assert_self();
-        match self.recipients.get(&recipient) {
-            Some(matchers_for_this_recipient) => {
-                // let temp = JsonContainer {
-                //     matcher_account_map: matchers_for_this_recipient,
-                // };
-                let json_value = matchers_for_this_recipient
-                    .iter()
-                    .map(|(k, v)| (k, v.to_string()))
-                    .collect::<serde_json::Value>(); //serde_json::to_string(&temp).unwrap();
-                let existing_commitments_from_matchers =
-                    serde_json::to_string(&json_value).unwrap();
-                self.recipients.remove(&recipient);
-                format!(
-                    "Recipient '{}' had these matchers, which are now deleted: {}",
-                    recipient, existing_commitments_from_matchers
-                )
-            }
-            None => {
-                format!(
-                    "Recipient '{}' did not have any matchers to delete.",
-                    recipient
-                )
-            }
-        }
+      self.recipients.remove(&recipient);
     }
 }
 

@@ -126,7 +126,7 @@ near view $CONTRACT get_commitments "{\"recipient\": \"$RECIPIENT\"}"
 
 (The CLI/Explorer should now show Matcher1's balance as ~16 and get_commitments as empty.)
 
-Optionally nuke the match relationships if they weren't already emptied: `near call $CONTRACT delete_all_matches_associated_with_recipient "{\"recipient\": \"$RECIPIENT\"}" --accountId $CONTRACT --gas=15000000000000` or nuke all recipients' data: `near call $CONTRACT nuke_all_data_in_contract --accountId $CONTRACT --gas=15000000000000`
+Optionally nuke the match relationships if they weren't already emptied: `near call $CONTRACT delete_all_matches_associated_with_recipient "{\"recipient\": \"$RECIPIENT\"}" --accountId $CONTRACT --gas=15000000000000`
 
 Optionally clean up accounts with:
 
@@ -138,12 +138,8 @@ near delete $MATCHER2 $PARENT
 near delete $CONTRACT $PARENT
 ```
 
-Or do recreate all in one line and force a new dev-deploy:
+Or do recreate all in one line and dev-deploy and delete_all_matches_associated_with_recipient:
 
 ```
-near delete $DONOR $PARENT && near delete $RECIPIENT $PARENT && near delete $MATCHER1 $PARENT && near delete $MATCHER2 $PARENT && near create-account recipient_b.ryancwalsh.testnet --masterAccount ryancwalsh.testnet --initialBalance 10 && near create-account matcher1_b.ryancwalsh.testnet --masterAccount ryancwalsh.testnet --initialBalance 20 && near create-account matcher2_b.ryancwalsh.testnet --masterAccount ryancwalsh.testnet --initialBalance 20 && near create-account donor_b.ryancwalsh.testnet --masterAccount ryancwalsh.testnet --initialBalance 20 && near dev-deploy -f $(raen build --release -q)
-
-export CONTRACT=dev-1658930001524-98030473694017
-
-near call $CONTRACT new --accountId $CONTRACT --gas=15000000000000
+near delete $DONOR $PARENT && near delete $RECIPIENT $PARENT && near delete $MATCHER1 $PARENT && near delete $MATCHER2 $PARENT && near create-account recipient_b.ryancwalsh.testnet --masterAccount ryancwalsh.testnet --initialBalance 10 && near create-account matcher1_b.ryancwalsh.testnet --masterAccount ryancwalsh.testnet --initialBalance 20 && near create-account matcher2_b.ryancwalsh.testnet --masterAccount ryancwalsh.testnet --initialBalance 20 && near create-account donor_b.ryancwalsh.testnet --masterAccount ryancwalsh.testnet --initialBalance 20 && near dev-deploy $(raen build --release -q) && near call $CONTRACT delete_all_matches_associated_with_recipient "{\"recipient\": \"$RECIPIENT\"}" --accountId $CONTRACT --gas=15000000000000
 ```
