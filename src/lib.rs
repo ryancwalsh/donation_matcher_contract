@@ -1,6 +1,6 @@
 // Using https://github.com/near-examples/docs-examples/blob/4fda29c8cdabd9aba90787c553413db7725d88bd/donation-rs/contract/src/lib.rs as a basis
 
-use helpers::generic::{did_promise_succeed, hash_account_id};
+use helpers::generic::{did_promise_succeed, hash_account_id, near_string_to_yocto};
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use near_sdk::collections::{LookupMap, UnorderedMap};
 use near_sdk::{
@@ -140,7 +140,11 @@ impl Contract {
             log!(msg);
             matchers_log.push(msg);
         }
-        format!("These matchers are committed to match donations to {} up to a maximum of the following amounts:\n{}",recipient,matchers_log.join("\n"))
+         format!(
+            "These matchers are committed to match donations to {} up to a maximum of the following amounts:\n{}",
+            recipient,
+            matchers_log.join("\n")
+            )
     }
 
     pub fn transfer_from_escrow(&self, destination_account: &AccountId, amount: Amount) -> Promise {
@@ -196,19 +200,21 @@ impl Contract {
         }
     }
 
+    /// requested_withdrawal_amount is in NEAR (commas, underscores, and 'Ⓝ' are acceptable and will be ignored)
     pub fn rescind_matching_funds(
         &mut self,
         recipient: &AccountId,
-        requested_withdrawal_amount: Amount,
+        requested_withdrawal_amount: generic::FormattedNearString,
     ) -> String {
         let matcher = env::signer_account_id();
         let matchers_for_this_recipient = self.get_expected_matchers_for_this_recipient(&recipient);
         let amount_already_committed =
             self.get_expected_commitment(&recipient, &matchers_for_this_recipient, &matcher);
+        let requested_withdrawal_amount_yocto: Amount = near_string_to_yocto(requested_withdrawal_amount);
         let result;
-        let mut amount_to_decrease = requested_withdrawal_amount;
+        let mut amount_to_decrease = requested_withdrawal_amount_yocto;
         let mut new_amount = 0;
-        if requested_withdrawal_amount > amount_already_committed {
+        if requested_withdrawal_amount_yocto > amount_already_committed {
             amount_to_decrease = amount_already_committed;
             result =
                 format!(
@@ -217,7 +223,13 @@ impl Contract {
             );
         } else {
             new_amount = amount_already_committed - amount_to_decrease;
-            result = format!("{} is about to rescind {} and then will only be committed to match donations to {} up to a maximum of {}.", &matcher, yocto_to_near_string(amount_to_decrease), recipient, yocto_to_near_string(new_amount));
+            result = format!(
+                "{} is about to rescind {} and then will only be committed to match donations to {} up to a maximum of {}.",
+                 &matcher, 
+                 yocto_to_near_string(amount_to_decrease), 
+                 recipient, 
+                 yocto_to_near_string(new_amount)
+            );
         }
         self.set_matcher_amount(&recipient, &matcher, new_amount);
         self.transfer_from_escrow(&matcher, amount_to_decrease) // Funds go from escrow back to the matcher.
@@ -283,19 +295,19 @@ impl Contract {
     #[private] // Public - but only callable by env::current_account_id()
     pub fn on_donate(
         &mut self,
-        recipient: &AccountId,
-        matcher: AccountId,
-        original_amount: Amount,
+        // recipient: &AccountId,
+        // matcher: AccountId,
+        // original_amount: Amount,
     ) -> () {
         if !did_promise_succeed() {
             // If transfer failed, change the state back to what it was:
             // TODO Do it for every matcher of this recipient
-            self.set_matcher_amount(&recipient, &matcher, original_amount);
+            //self.set_matcher_amount(&recipient, &matcher, original_amount);
         }
     }
 
     #[payable] // Public - People can attach money
-    pub fn donate(recipient: AccountId) {
+    pub fn donate(&mut self, recipient: AccountId) {
         let donation_amount: Amount = env::attached_deposit();
         assert!(donation_amount > 0, "Attaching some yoctoNEAR is required.");
         let donor = env::signer_account_id(); // https://docs.near.org/develop/contracts/environment/
@@ -308,14 +320,17 @@ impl Contract {
             "prepaid_gas={:?}, gas_already_burned={:?}, gas_to_be_burned_during_transfer_from_escrow={:?}, remaining_gas={:?}",
             prepaid_gas,
             gas_already_burned,
-            gas_to_be_burned_during_transfer_from_escrow,  
+            gas_to_be_burned_during_transfer_from_escrow,   // TODO Why is Prettier not working?
 
             remaining_gas
           );
         // TODO optimistically change state, then do the actual transfer, then in the callback undo the state change if the transfer failed
-        //   _transfer_from_escrow(recipient, amount) // Immediately pass it along.
-        //     .then(env::current_account_id())// escrow contract name
-        //     .function_call<DRAE>('transfer_from_escrow_callback_after_donating', { donor, recipient, amount, escrowContractName }, u128.Zero, remainingGas);
+        self.transfer_from_escrow(&recipient, donation_amount) // The donor attached a deposit which this contract owns at this point. Immediately pass it along to the intended recipient.
+        .then(
+            Self::ext(env::current_account_id()) // escrow contract name
+        .with_static_gas(GAS_FOR_ACCOUNT_CALLBACK)
+                .on_donate());//     .function_call<DRAE>('transfer_from_escrow_callback_after_donating', { donor, recipient, amount, escrowContractName }, u128.Zero, remainingGas);
+        
     }
 
     pub fn delete_all_matches_associated_with_recipient(&mut self, recipient: AccountId) -> String {

@@ -95,7 +95,7 @@ near state $MATCHER2 |  sed -n "s/.*formattedAmount: '\([^\\]*\).*'/\1/p"
 (The result should reflect the values from above, and the CLI/Explorer should now also show Matcher1's balance as ~19.7 and Matcher2's balance as ~19.9.)
 
 ```
-near call $CONTRACT rescind_matching_funds "{\"recipient\": \"$RECIPIENT\", \"requestedAmount\": \"2000000000000000000000000\"}" --accountId $MATCHER1 --gas=90000000000000
+near call $CONTRACT rescind_matching_funds "{\"recipient\": \"$RECIPIENT\", \"requested_withdrawal_amount\": \"0.002\"}" --accountId $MATCHER1 --gas=90000000000000
 near view $CONTRACT get_commitments "{\"recipient\": \"$RECIPIENT\"}"
 near state $MATCHER1 |  sed -n "s/.*formattedAmount: '\([^\\]*\).*'/\1/p"
 ```
@@ -119,7 +119,7 @@ Matcher2's balance as still ~19
 Donor's balance is ~16.)
 
 ```
-near call $CONTRACT rescind_matching_funds "{\"recipient\": \"$RECIPIENT\", \"requestedAmount\": \"9999000000000000000000000000\"}" --accountId $MATCHER1 --gas=90000000000000
+near call $CONTRACT rescind_matching_funds "{\"recipient\": \"$RECIPIENT\", \"requested_withdrawal_amount\": \"9999000000000000000000000000\"}" --accountId $MATCHER1 --gas=90000000000000
 near state $MATCHER1 |  sed -n "s/.*formattedAmount: '\([^\\]*\).*'/\1/p"
 near view $CONTRACT get_commitments "{\"recipient\": \"$RECIPIENT\"}"
 ```
@@ -136,4 +136,14 @@ near delete $RECIPIENT $PARENT
 near delete $MATCHER1 $PARENT
 near delete $MATCHER2 $PARENT
 near delete $CONTRACT $PARENT
+```
+
+Or do recreate all in one line and force a new dev-deploy:
+
+```
+near delete $DONOR $PARENT && near delete $RECIPIENT $PARENT && near delete $MATCHER1 $PARENT && near delete $MATCHER2 $PARENT && near create-account recipient_b.ryancwalsh.testnet --masterAccount ryancwalsh.testnet --initialBalance 10 && near create-account matcher1_b.ryancwalsh.testnet --masterAccount ryancwalsh.testnet --initialBalance 20 && near create-account matcher2_b.ryancwalsh.testnet --masterAccount ryancwalsh.testnet --initialBalance 20 && near create-account donor_b.ryancwalsh.testnet --masterAccount ryancwalsh.testnet --initialBalance 20 && near dev-deploy -f $(raen build --release -q)
+
+export CONTRACT=dev-1658930001524-98030473694017
+
+near call $CONTRACT new --accountId $CONTRACT --gas=15000000000000
 ```

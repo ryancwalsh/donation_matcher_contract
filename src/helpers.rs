@@ -3,6 +3,8 @@
 pub mod generic {
     use near_sdk::{env, log, CryptoHash, PromiseResult};
 
+    pub type FormattedNearString = String; // (commas, underscores, and 'Ⓝ' are acceptable and will be ignored)
+
     /// Aux functions to interact with the validator
     // https://docs.near.org/develop/contracts/crosscontract#snippet-sending-information
     pub fn did_promise_succeed() -> bool {
@@ -35,5 +37,23 @@ pub mod generic {
     pub(crate) fn yocto_to_near_string(yocto: u128) -> String {
         let numeric = yocto_to_near(yocto);
         numeric.to_string() + &" Ⓝ".to_string()
+    }
+
+    /// Convert $NEAR to yoctoNEAR.
+    pub(crate) fn near_string_to_yocto(near_string: FormattedNearString) -> u128 {
+        // TODO: Audit
+        let cleaned = near_string
+            .replace(",", "")
+            .replace("_", "")
+            .replace("Ⓝ", "");
+        let near: f64 = cleaned.parse().expect("Could not convert NEAR from string to yoctoNEAR integer. Please check the formatting of your string.");
+        let yocto = f64::powi(near, 24); // https://nomicon.io/Economics/Economic
+
+        near_sdk::log!(
+            "near_string_to_yocto converted {} (FormattedNear) to {} (yoctoNEAR)",
+            near_string,
+            yocto
+        );
+        yocto as u128
     }
 }
