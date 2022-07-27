@@ -36,24 +36,6 @@ pub mod generic {
         near
     }
 
-    // TODO: Remove
-    /// Helper function to convert yoctoNEAR to $NEAR with 4 decimals of precision.
-    pub(crate) fn old_yocto_to_near(yocto: u128) -> f64 {
-        //10^20 yoctoNEAR (1 NEAR would be 10_000). This is to give a precision of 4 decimal places.
-        let formatted_near = yocto / 100_000_000_000_000_000_000;
-        let near = formatted_near as f64 / 10_000_f64;
-
-        near
-    }
-
-    // TODO: Remove
-    /// Helper function to convert yoctoNEAR to $NEAR with _ decimals of precision.
-    pub(crate) fn old_yocto_to_near_string(yocto: u128) -> String {
-        let numeric = old_yocto_to_near(yocto);
-        // ONEDAY: Add underscores or commas as thousands separators
-        numeric.to_string() + &" Ⓝ".to_string()
-    }
-
     /// Helper function to convert yoctoNEAR to $NEAR with _ decimals of precision.
     pub(crate) fn yocto_to_near_string(yocto: u128) -> String {
         let numeric = yocto_to_near(yocto, DEFAULT_DECIMAL_PLACES);

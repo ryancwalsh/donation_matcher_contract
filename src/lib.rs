@@ -367,7 +367,7 @@ mod tests {
     use near_sdk::test_utils::{accounts, VMContextBuilder};
     use near_sdk::{testing_env, Balance};
 
-    use crate::generic::{yocto_to_near_string, old_yocto_to_near_string};
+    use crate::generic::{yocto_to_near_string};
 
     use super::*;
 
@@ -385,7 +385,6 @@ mod tests {
         // let mut context = get_context(accounts(2));
         // testing_env!(context.build());
         
-        assert_eq!(old_yocto_to_near_string(4_444_464_587_249_763_651_824_729), "4.4444 Ⓝ"); // TODO: Remove
         assert_eq!(yocto_to_near_string(3_193_264_587_249_763_651_824_729), "3.1932 Ⓝ"); // https://docs.rs/near-helper/latest/near_helper/fn.yoctonear_to_near.html
         assert_eq!(yocto_to_near_string(21_409_258_000_000_000_000_000), "0.0214 Ⓝ"); // https://docs.rs/near-helper/latest/near_helper/fn.yoctonear_to_near.html
         assert_eq!(yocto_to_near_string(10_000_000_000_000_000_000_000), "0.01 Ⓝ");
