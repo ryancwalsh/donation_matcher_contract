@@ -15,11 +15,7 @@ pub mod generic {
             log!("Expected a result on the callback");
             return false;
         }
-
-        match env::promise_result(0) {
-            PromiseResult::Successful(_) => true,
-            _ => false,
-        }
+        matches!(env::promise_result(0), PromiseResult::Successful(_))
     }
 
     /// Used to generate a unique prefix in our storage collections (this is to avoid data collisions; see https://stackoverflow.com/questions/65248816/why-should-i-hash-keys-in-the-nearprotocol-unorderedmap)
@@ -32,7 +28,6 @@ pub mod generic {
         // TODO: Audit
         let precision_multiplier = u128::pow(10, decimal_places);
         let formatted_near = amount_in_yocto * precision_multiplier / YOCTO_FACTOR;
-        
         formatted_near as f64 / precision_multiplier as f64
     }
 

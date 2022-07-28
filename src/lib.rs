@@ -99,7 +99,7 @@ impl Contract {
         let mut matchers_for_this_recipient = self
             .recipients
             .get(&recipient)
-            .unwrap_or(Self::create_new_matcher_amount_map(&recipient));
+            .unwrap_or_else(|| Self::create_new_matcher_amount_map(&recipient));
 
         // If the matcher has already donated, increment their donation.
         let existing_commitment = matchers_for_this_recipient.get(&matcher).unwrap_or(0);
@@ -282,8 +282,8 @@ impl Contract {
     #[private] // Public - but only callable by env::current_account_id()
     pub fn on_donate(
         &mut self,
-        donation_amount: &Amount,
-        original_commitments: &InMemoryMatcherAmountMap,
+        _donation_amount: &Amount,
+        _original_commitments: &InMemoryMatcherAmountMap,
     ) {
         if !did_promise_succeed() {
             // If transfer failed, change the state back to what it was:
