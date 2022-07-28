@@ -203,45 +203,46 @@ impl Contract {
     }
 
     /// requested_withdrawal_amount is in NEAR (commas, underscores, and 'Ⓝ' are acceptable and will be ignored)
-    // pub fn rescind_matching_funds(
-    //     &mut self,
-    //     recipient: &AccountId,
-    //     requested_withdrawal_amount: generic::FormattedNearString,
-    // ) -> String {
-    //     let matcher = env::signer_account_id();
-    //     let matchers_for_this_recipient = self.get_expected_matchers_for_this_recipient(recipient);
-    //     let amount_already_committed =
-    //         self.get_expected_commitment(recipient, &matchers_for_this_recipient, &matcher);
-    //     let requested_withdrawal_amount_yocto: Amount = near_string_to_yocto(requested_withdrawal_amount);
-    //     let result;
-    //     let mut amount_to_decrease = requested_withdrawal_amount_yocto;
-    //     let mut new_amount = 0;
-    //     if requested_withdrawal_amount_yocto > amount_already_committed {
-    //         amount_to_decrease = amount_already_committed;
-    //         result =
-    //             format!(
-    //             "{} is about to rescind {} and then will not be matching donations to {} anymore",
-    //             &matcher, yocto_to_near_string(amount_to_decrease), recipient
-    //         );
-    //     } else {
-    //         new_amount = amount_already_committed - amount_to_decrease;
-    //         result = format!(
-    //             "{} is about to rescind {} and then will only be committed to match donations to {} up to a maximum of {}.",
-    //              &matcher,
-    //              yocto_to_near_string(amount_to_decrease),
-    //              recipient,
-    //              yocto_to_near_string(new_amount)
-    //         );
-    //     }
-    //     self.set_matcher_amount(recipient, &matcher, new_amount);
-    //     self.transfer_from_escrow(&matcher, amount_to_decrease) // Funds go from escrow back to the matcher.
-    //         .then(
-    //             Self::ext(env::current_account_id()) // escrow contract name
-    //                 .with_static_gas(GAS_FOR_ACCOUNT_CALLBACK)
-    //                 .on_rescind_matching_funds(recipient, matcher, amount_already_committed),
-    //         );
-    //     result
-    // }
+    pub fn rescind_matching_funds(
+        &mut self,
+        recipient: &AccountId,
+        requested_withdrawal_amount: generic::FormattedNearString,
+    ) -> String {
+        let matcher = env::signer_account_id();
+        let matchers_for_this_recipient = self.get_expected_matchers_for_this_recipient(recipient);
+        let amount_already_committed =
+            self.get_expected_commitment(recipient, &matchers_for_this_recipient, &matcher);
+        let requested_withdrawal_amount_yocto: Amount =
+            near_string_to_yocto(requested_withdrawal_amount);
+        let result;
+        let mut amount_to_decrease = requested_withdrawal_amount_yocto;
+        let mut new_amount = 0;
+        if requested_withdrawal_amount_yocto > amount_already_committed {
+            amount_to_decrease = amount_already_committed;
+            result =
+                format!(
+                "{} is about to rescind {} and then will not be matching donations to {} anymore",
+                &matcher, yocto_to_near_string(amount_to_decrease), recipient
+            );
+        } else {
+            new_amount = amount_already_committed - amount_to_decrease;
+            result = format!(
+                "{} is about to rescind {} and then will only be committed to match donations to {} up to a maximum of {}.",
+                 &matcher,
+                 yocto_to_near_string(amount_to_decrease),
+                 recipient,
+                 yocto_to_near_string(new_amount)
+            );
+        }
+        self.set_matcher_amount(recipient, &matcher, new_amount);
+        self.transfer_from_escrow(&matcher, amount_to_decrease) // Funds go from escrow back to the matcher.
+            .then(
+                Self::ext(env::current_account_id()) // escrow contract name
+                    .with_static_gas(GAS_FOR_ACCOUNT_CALLBACK)
+                    .on_rescind_matching_funds(recipient, matcher, amount_already_committed),
+            );
+        result
+    }
 
     // Only gets called internally by send_matching_donations.
     #[private]
