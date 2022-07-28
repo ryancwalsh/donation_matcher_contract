@@ -251,9 +251,9 @@ impl Contract {
         donation_amount: &Amount,
         recipient: &AccountId,
     ) -> (Amount, InMemoryMatcherAmountMap) {
-        let mut sum_of_donations_to_send = donation_amount.clone();
+        let mut sum_of_donations_to_send = *donation_amount;
         let mut matchers_for_this_recipient: MatcherAmountMap =
-            self.get_expected_matchers_for_this_recipient(&recipient);
+            self.get_expected_matchers_for_this_recipient(recipient);
         let mut original_commitments = InMemoryMatcherAmountMap::new();
         // let mut matcher_keys = Vec::new();
         // for matcher in matchers.iter() {
@@ -261,8 +261,8 @@ impl Contract {
         // }
         for matcher in matchers_for_this_recipient.keys() {
             let existing_commitment =
-                self.get_expected_commitment(&recipient, &matchers_for_this_recipient, &matcher);
-            let matched_amount: u128 = cmp::min(donation_amount.clone(), existing_commitment);
+                self.get_expected_commitment(recipient, &matchers_for_this_recipient, &matcher);
+            let matched_amount: u128 = cmp::min(*donation_amount, existing_commitment);
             let remaining_commitment: u128 = existing_commitment - matched_amount;
             near_sdk::log!(
                 "{} will send a matching donation of {} to {}. Remaining commitment: {}.",
