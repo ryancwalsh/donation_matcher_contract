@@ -36,13 +36,13 @@ On each donation:
 ```
 near create-account justatemporarylocalaccount.node0 --masterAccount node0 --initialBalance 1000 --keyPath ~/.near/localnet/node0/validator_key.json
 
-near create-account recipient.justatemporarylocalaccount.node0 --masterAccount justatemporarylocalaccount.node0 --initialBalance 10
+near create-account recipient.justatemporarylocalaccount.node0 --masterAccount justatemporarylocalaccount.node0 --initialBalance 1
 
-near create-account matcher1.justatemporarylocalaccount.node0 --masterAccount justatemporarylocalaccount.node0 --initialBalance 20
+near create-account matcher1.justatemporarylocalaccount.node0 --masterAccount justatemporarylocalaccount.node0 --initialBalance 1
 
-near create-account matcher2.justatemporarylocalaccount.node0 --masterAccount justatemporarylocalaccount.node0 --initialBalance 20
+near create-account matcher2.justatemporarylocalaccount.node0 --masterAccount justatemporarylocalaccount.node0 --initialBalance 1
 
-near create-account donor.justatemporarylocalaccount.node0 --masterAccount justatemporarylocalaccount.node0 --initialBalance 20
+near create-account donor.justatemporarylocalaccount.node0 --masterAccount justatemporarylocalaccount.node0 --initialBalance 1
 
 export PARENT=justatemporarylocalaccount.node0
 export MATCHER1=matcher1.justatemporarylocalaccount.node0
@@ -62,10 +62,10 @@ export DONOR=donor.justatemporarylocalaccount.node0
    - If you don't already have 3 testnet accounts that you want to use, you can create one (to serve as Matcher) at https://wallet.testnet.near.org/. Then you can create RECIPIENT and DONOR accounts as [sub-accounts](https://docs.near.org/docs/tools/near-cli#near-create-account) of that one. E.g.:
 
    ```
-   near create-account recipient_b.ryancwalsh.testnet --masterAccount ryancwalsh.testnet --initialBalance 10
-   near create-account matcher1_b.ryancwalsh.testnet --masterAccount ryancwalsh.testnet --initialBalance 20
-   near create-account matcher2_b.ryancwalsh.testnet --masterAccount ryancwalsh.testnet --initialBalance 20
-   near create-account donor_b.ryancwalsh.testnet --masterAccount ryancwalsh.testnet --initialBalance 20
+   near create-account recipient_b.ryancwalsh.testnet --masterAccount ryancwalsh.testnet --initialBalance 1
+   near create-account matcher1_b.ryancwalsh.testnet --masterAccount ryancwalsh.testnet --initialBalance 1
+   near create-account matcher2_b.ryancwalsh.testnet --masterAccount ryancwalsh.testnet --initialBalance 1
+   near create-account donor_b.ryancwalsh.testnet --masterAccount ryancwalsh.testnet --initialBalance 1
    ```
 
 1. Call `export` commands to define RECIPIENT, MATCHER, and DONOR with the accountIds from the previous steps. E.g.:
@@ -92,18 +92,20 @@ near state $MATCHER1 |  sed -n "s/.*formattedAmount: '\([^\\]*\).*'/\1/p"
 near state $MATCHER2 |  sed -n "s/.*formattedAmount: '\([^\\]*\).*'/\1/p"
 ```
 
-(The result should reflect the values from above, and the CLI/Explorer should now also show Matcher1's balance as ~19.7 and Matcher2's balance as ~19.9.)
+In the approximate expected amounts below (denoted with `~`), consider that the amounts will actually be slightly less because some funds will have been sacrificed as gas costs.
+
+(The result should reflect the values from above, and the CLI/Explorer should now also show Matcher1's balance as ~0.7 and Matcher2's balance as ~0.9.)
 
 ```
-near call $CONTRACT rescind_matching_funds "{\"recipient\": \"$RECIPIENT\", \"requested_withdrawal_amount\": \"0.002\"}" --accountId $MATCHER1 --gas=90000000000000
+near call $CONTRACT rescind_matching_funds "{\"recipient\": \"$RECIPIENT\", \"requested_withdrawal_amount\": \"0.02 Ⓝ\"}" --accountId $MATCHER1 --gas=90000000000000
 near view $CONTRACT get_commitments "{\"recipient\": \"$RECIPIENT\"}"
 near state $MATCHER1 |  sed -n "s/.*formattedAmount: '\([^\\]*\).*'/\1/p"
 ```
 
-(Matcher1 should now only have 0.298 committed to this Recipient. The CLI/Explorer should now also show Matcher1's balance as 0.002 more than it was.)
+(Matcher1 should now only have 0.3 - 0.02 = 0.28 committed to this Recipient. The CLI/Explorer should now also show Matcher1's balance as ~0.72.)
 
 ```
-near call $CONTRACT donate "{\"recipient\": \"$RECIPIENT\"}" --accountId $DONOR --deposit 4 --gas 300000000000000
+near call $CONTRACT donate "{\"recipient\": \"$RECIPIENT\"}" --accountId $DONOR --deposit .1 --gas 300000000000000
 near state $MATCHER1 |  sed -n "s/.*formattedAmount: '\([^\\]*\).*'/\1/p"
 near state $MATCHER2 |  sed -n "s/.*formattedAmount: '\([^\\]*\).*'/\1/p"
 near state $RECIPIENT |  sed -n "s/.*formattedAmount: '\([^\\]*\).*'/\1/p"
@@ -111,20 +113,21 @@ near state $DONOR |  sed -n "s/.*formattedAmount: '\([^\\]*\).*'/\1/p"
 near view $CONTRACT get_commitments "{\"recipient\": \"$RECIPIENT\"}"
 ```
 
-(Only Matcher1 should be committed to 3.)
+(Only Matcher1 should be committed to 0.298 - 0.1 = 0.198.)
+
 (The CLI/Explorer should now show:
-Recipient's balance as 10+4+4+1 = 19
-Matcher1's balance as still ~13
-Matcher2's balance as still ~19
-Donor's balance is ~16.)
+Recipient's balance as 1 + (0.1 \* 3) = 1.3
+Matcher1's balance as still ~0.702.
+Matcher2's balance as still ~0.9.
+Donor's balance is ~0.9.)
 
 ```
-near call $CONTRACT rescind_matching_funds "{\"recipient\": \"$RECIPIENT\", \"requested_withdrawal_amount\": \"9999000000000000000000000000\"}" --accountId $MATCHER1 --gas=90000000000000
+near call $CONTRACT rescind_matching_funds "{\"recipient\": \"$RECIPIENT\", \"requested_withdrawal_amount\": \"999 Ⓝ\"}" --accountId $MATCHER1 --gas=90000000000000
 near state $MATCHER1 |  sed -n "s/.*formattedAmount: '\([^\\]*\).*'/\1/p"
 near view $CONTRACT get_commitments "{\"recipient\": \"$RECIPIENT\"}"
 ```
 
-(The CLI/Explorer should now show Matcher1's balance as ~16 and get_commitments as empty.)
+(The CLI/Explorer should now show Matcher1's balance as ~0.702 + 0.198 = ~0.9 and get_commitments as empty.)
 
 Optionally nuke the match relationships if they weren't already emptied: `near call $CONTRACT delete_all_matches_associated_with_recipient "{\"recipient\": \"$RECIPIENT\"}" --accountId $CONTRACT --gas=15000000000000`
 
@@ -141,5 +144,5 @@ near delete $CONTRACT $PARENT
 Or do recreate all in one line and dev-deploy and delete_all_matches_associated_with_recipient:
 
 ```
-near delete $DONOR $PARENT && near delete $RECIPIENT $PARENT && near delete $MATCHER1 $PARENT && near delete $MATCHER2 $PARENT && near create-account recipient_b.ryancwalsh.testnet --masterAccount ryancwalsh.testnet --initialBalance 10 && near create-account matcher1_b.ryancwalsh.testnet --masterAccount ryancwalsh.testnet --initialBalance 20 && near create-account matcher2_b.ryancwalsh.testnet --masterAccount ryancwalsh.testnet --initialBalance 20 && near create-account donor_b.ryancwalsh.testnet --masterAccount ryancwalsh.testnet --initialBalance 20 && near dev-deploy $(raen build --release -q) && near call $CONTRACT delete_all_matches_associated_with_recipient "{\"recipient\": \"$RECIPIENT\"}" --accountId $CONTRACT --gas=15000000000000
+near delete $DONOR $PARENT && near delete $RECIPIENT $PARENT && near delete $MATCHER1 $PARENT && near delete $MATCHER2 $PARENT && near create-account recipient_b.ryancwalsh.testnet --masterAccount ryancwalsh.testnet --initialBalance 1 && near create-account matcher1_b.ryancwalsh.testnet --masterAccount ryancwalsh.testnet --initialBalance 1 && near create-account matcher2_b.ryancwalsh.testnet --masterAccount ryancwalsh.testnet --initialBalance 1 && near create-account donor_b.ryancwalsh.testnet --masterAccount ryancwalsh.testnet --initialBalance 1 && near dev-deploy $(raen build --release -q) && near call $CONTRACT delete_all_matches_associated_with_recipient "{\"recipient\": \"$RECIPIENT\"}" --accountId $CONTRACT --gas=15000000000000
 ```
