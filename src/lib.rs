@@ -291,9 +291,7 @@ impl Contract {
     #[private] // Public - but only callable by env::current_account_id()
     pub fn on_donate(
         &mut self,
-        // recipient: &AccountId,
-        // matcher: AccountId,
-        // original_amount: Amount,
+         original_commitments: &MatcherAmountMap,
     ) {
         if !did_promise_succeed() {
             // If transfer failed, change the state back to what it was:
@@ -306,7 +304,6 @@ impl Contract {
     pub fn donate(&mut self, recipient: AccountId) {
         let donation_amount: Amount = env::attached_deposit();
         assert!(donation_amount > 0, "Attaching some yoctoNEAR is required.");
-        let donor = env::signer_account_id(); // https://docs.near.org/develop/contracts/environment/
         let prepaid_gas = env::prepaid_gas();
         let gas_already_burned = env::used_gas();
         let gas_to_be_burned_during_transfer_from_escrow = GAS_FOR_ACCOUNT_CALLBACK;
@@ -320,12 +317,20 @@ impl Contract {
 
             remaining_gas
           );
+        let mut sum_of_donations_to_send = donation_amount;
         // TODO optimistically change state, then do the actual transfer, then in the callback undo the state change if the transfer failed
-        self.transfer_from_escrow(&recipient, donation_amount) // The donor attached a deposit which this contract owns at this point. Immediately pass it along to the intended recipient.
+        let mut matchers_for_this_recipient: MatcherAmountMap =
+            self.get_expected_matchers_for_this_recipient(&recipient);
+        let matchers = matchers_for_this_recipient.keys_as_vector();
+        let mut to_remove = Vec::new();
+        for matcher in matchers.iter() {
+
+        }
+        self.transfer_from_escrow(&recipient, sum_of_donations_to_send) // The donor attached a deposit which this contract owns at this point. Immediately pass it along to the intended recipient.
         .then(
             Self::ext(env::current_account_id()) // escrow contract name
         .with_static_gas(GAS_FOR_ACCOUNT_CALLBACK)
-                .on_donate());//     .function_call<DRAE>('transfer_from_escrow_callback_after_donating', { donor, recipient, amount, escrowContractName }, u128.Zero, remainingGas);
+                .on_donate(original_commitments));
         
     }
 
@@ -337,7 +342,7 @@ impl Contract {
             self.get_expected_matchers_for_this_recipient(&recipient);
         let matchers = matchers_for_this_recipient.keys_as_vector();
         let mut to_remove = Vec::new();
-        for (_, matcher) in matchers.iter().enumerate() {
+        for matcher in matchers.iter() {
             to_remove.push(matcher); 
         }
         for key in to_remove.iter(){// https://stackoverflow.com/a/45724774/470749
@@ -351,7 +356,6 @@ impl Contract {
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod tests {
     use near_sdk::test_utils::{accounts, VMContextBuilder};
-    
 
     use crate::generic::{yocto_to_near_string};
 
