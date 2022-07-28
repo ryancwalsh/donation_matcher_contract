@@ -208,6 +208,7 @@ impl Contract {
         recipient: &AccountId,
         requested_withdrawal_amount: generic::FormattedNearString,
     ) -> String {
+        // TODO rescind_matching_funds with 999 Ⓝ still has the wrong result in the commitments, and matcher keys should be removed when commitment gets down to 0
         let matcher = env::signer_account_id();
         let matchers_for_this_recipient = self.get_expected_matchers_for_this_recipient(recipient);
         let amount_already_committed =
@@ -272,7 +273,8 @@ impl Contract {
                 &recipient,
                 yocto_to_near_string(remaining_commitment)
             );
-            matchers_for_this_recipient.insert(&matcher, &matched_amount);
+            matchers_for_this_recipient.insert(&matcher, &remaining_commitment);
+            // TODO Matcher keys should be removed when commitment gets down to 0
             original_commitments.insert(matcher, existing_commitment);
             sum_of_donations_to_send += matched_amount;
         }

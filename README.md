@@ -113,11 +113,11 @@ near state $DONOR |  sed -n "s/.*formattedAmount: '\([^\\]*\).*'/\1/p"
 near view $CONTRACT get_commitments "{\"recipient\": \"$RECIPIENT\"}"
 ```
 
-(Only Matcher1 should be committed to 0.298 - 0.1 = 0.198.)
+(Only Matcher1 should be committed to 0.28 - 0.1 = 0.18. Matcher2 no longer has funds committed.)
 
 (The CLI/Explorer should now show:
-Recipient's balance as 1 + (0.1 \* 3) = 1.3
-Matcher1's balance as still ~0.702.
+Recipient's balance as 1 + (0.1 \* 3) = 1.3 exactly.
+Matcher1's balance as still ~0.72.
 Matcher2's balance as still ~0.9.
 Donor's balance is ~0.9.)
 
