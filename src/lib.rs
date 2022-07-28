@@ -8,6 +8,7 @@ use near_sdk::{
     PanicOnDefault, Promise,
 };
 use std::cmp;
+use std::collections::HashMap;
 use witgen::witgen;
 use near_units::{near};
 
@@ -19,6 +20,7 @@ pub use crate::helpers::generic;
 type Amount = Balance;
 type MatcherAccountId = AccountId;
 type MatcherAmountMap = UnorderedMap<MatcherAccountId, Amount>; // https://doc.rust-lang.org/reference/items/type-aliases.html
+type InMemoryMatcherAmountMap = HashMap<MatcherAccountId, Amount>;
 type RecipientAccountId = AccountId;
 type MatcherAmountPerRecipient = LookupMap<RecipientAccountId, MatcherAmountMap>;
 
@@ -237,66 +239,42 @@ impl Contract {
         result
     }
 
-    #[private] // Public - but only callable by env::current_account_id()
-    pub fn on_send_matching_donation(
-        &mut self,
-        recipient: &AccountId,
-        matcher: AccountId,
-        original_amount: Amount,
-    ) {
-        if !did_promise_succeed() {
-            // If transfer failed, change the state back to what it was:
-            self.set_matcher_amount(recipient, &matcher, original_amount);
-        }
-    }
-
     // Only gets called internally by send_matching_donations.
     #[private]
-    fn send_matching_donation(
-        &mut self,
-        recipient: &AccountId,
-        matchers_for_this_recipient: &MatcherAmountMap,
-        matcher: AccountId,
-        amount: Amount,
-    ) {
-        let existing_commitment =
-            self.get_expected_commitment(recipient, matchers_for_this_recipient, &matcher);
-        let matched_amount: u128 = cmp::min(amount, existing_commitment);
-        let remaining_commitment: u128 = existing_commitment - matched_amount;
-        near_sdk::log!(
-            "{} will send a matching donation of {} to {}. Remaining commitment: {}.",
-            &matcher,
-            yocto_to_near_string(matched_amount),
-            &recipient,
-            yocto_to_near_string(remaining_commitment)
-        );
-        self.set_matcher_amount(recipient, &matcher, matched_amount);
-        self.transfer_from_escrow(recipient, matched_amount).then(
-            Self::ext(env::current_account_id()) // escrow contract name
-                .with_static_gas(GAS_FOR_ACCOUNT_CALLBACK)
-                .on_send_matching_donation(recipient, matcher, existing_commitment),
-        );
-    }
-
-    // Only gets called internally.
-    #[private]
-    fn send_matching_donations(&mut self, recipient: &AccountId, amount: Amount) {
-        let matchers_for_this_recipient = self.get_expected_matchers_for_this_recipient(recipient);
-        let matchers = matchers_for_this_recipient.keys_as_vector();
+    fn record_matching_donations_as_sent(        &mut self,        donation_amount: &Amount ,        recipient: &AccountId,            ) ->(Amount,InMemoryMatcherAmountMap){
+        let mut sum_of_donations_to_send = donation_amount.clone();
+        // TODO optimistically change state, then do the actual transfer, then in the callback undo the state change if the transfer failed
+        let mut matchers_for_this_recipient: MatcherAmountMap =
+            self.get_expected_matchers_for_this_recipient(&recipient);
+            let mut original_commitments=InMemoryMatcherAmountMap::new();
+        let matchers = matchers_for_this_recipient.keys_as_vector();        
         for matcher in matchers.iter() {
-            self.send_matching_donation(recipient, &matchers_for_this_recipient, matcher, amount);
+            let existing_commitment =
+            self.get_expected_commitment(recipient, &matchers_for_this_recipient, &matcher);
+            let matched_amount: u128 = cmp::min(donation_amount.clone(), existing_commitment);
+            let remaining_commitment: u128 = existing_commitment - matched_amount;
+            near_sdk::log!(
+                "{} will send a matching donation of {} to {}. Remaining commitment: {}.",
+    &           &matcher,
+                yocto_to_near_string(matched_amount),
+                &recipient,
+                yocto_to_near_string(remaining_commitment)
+            );
+            matchers_for_this_recipient.insert(&matcher, &matched_amount);
+            original_commitments.insert(matcher, existing_commitment);
+            sum_of_donations_to_send+=matched_amount;
         }
+        
+        (sum_of_donations_to_send,original_commitments)
     }
 
     #[private] // Public - but only callable by env::current_account_id()
-    pub fn on_donate(
-        &mut self,
-         original_commitments: &MatcherAmountMap,
-    ) {
+    pub fn on_donate(        &mut self,        donation_amount: &Amount,         original_commitments: &InMemoryMatcherAmountMap,    ) {
         if !did_promise_succeed() {
             // If transfer failed, change the state back to what it was:
+            // TODO (and send funds back to donor?)
             // TODO Do it for every matcher of this recipient
-            //self.set_matcher_amount(&recipient, &matcher, original_amount);
+            
         }
     }
 
@@ -314,24 +292,14 @@ impl Contract {
             prepaid_gas,
             gas_already_burned,
             gas_to_be_burned_during_transfer_from_escrow,   // TODO Why is Prettier not working?
-
             remaining_gas
           );
-        let mut sum_of_donations_to_send = donation_amount;
-        // TODO optimistically change state, then do the actual transfer, then in the callback undo the state change if the transfer failed
-        let mut matchers_for_this_recipient: MatcherAmountMap =
-            self.get_expected_matchers_for_this_recipient(&recipient);
-        let matchers = matchers_for_this_recipient.keys_as_vector();
-        let mut to_remove = Vec::new();
-        for matcher in matchers.iter() {
-
-        }
+        let (sum_of_donations_to_send, original_commitments)= self.record_matching_donations_as_sent(&donation_amount,&recipient);
         self.transfer_from_escrow(&recipient, sum_of_donations_to_send) // The donor attached a deposit which this contract owns at this point. Immediately pass it along to the intended recipient.
         .then(
             Self::ext(env::current_account_id()) // escrow contract name
         .with_static_gas(GAS_FOR_ACCOUNT_CALLBACK)
-                .on_donate(original_commitments));
-        
+                .on_donate(&donation_amount, &original_commitments));
     }
 
     #[private] // Public - but only callable by env::current_account_id()
