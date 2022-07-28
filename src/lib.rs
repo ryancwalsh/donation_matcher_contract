@@ -255,11 +255,12 @@ impl Contract {
         let mut matchers_for_this_recipient: MatcherAmountMap =
             self.get_expected_matchers_for_this_recipient(recipient);
         let mut original_commitments = InMemoryMatcherAmountMap::new();
-        // let mut matcher_keys = Vec::new();
-        // for matcher in matchers.iter() {
-        //     matcher_keys.push(matcher);
-        // }
+        let mut matcher_keys = Vec::new();
         for matcher in matchers_for_this_recipient.keys() {
+            // ONEDAY: What is a more elegant way of writing this function?
+            matcher_keys.push(matcher);
+        }
+        for matcher in matcher_keys {
             let existing_commitment =
                 self.get_expected_commitment(recipient, &matchers_for_this_recipient, &matcher);
             let matched_amount: u128 = cmp::min(*donation_amount, existing_commitment);
@@ -271,7 +272,7 @@ impl Contract {
                 &recipient,
                 yocto_to_near_string(remaining_commitment)
             );
-            // TODO: matchers_for_this_recipient.insert(&matcher, &matched_amount);
+            matchers_for_this_recipient.insert(&matcher, &matched_amount);
             original_commitments.insert(matcher, existing_commitment);
             sum_of_donations_to_send += matched_amount;
         }
