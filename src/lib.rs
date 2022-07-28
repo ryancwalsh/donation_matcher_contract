@@ -4,13 +4,13 @@ use helpers::generic::{did_promise_succeed, hash_account_id, near_string_to_yoct
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use near_sdk::collections::{LookupMap, UnorderedMap};
 use near_sdk::{
-    env, log, near_bindgen, AccountId, Balance, BorshStorageKey, CryptoHash, Gas,
-    PanicOnDefault, Promise,
+    env, log, near_bindgen, AccountId, Balance, BorshStorageKey, CryptoHash, Gas, PanicOnDefault,
+    Promise,
 };
+use near_units::near;
 use std::cmp;
 use std::collections::HashMap;
 use witgen::witgen;
-use near_units::{near};
 
 mod helpers;
 use crate::generic::yocto_to_near_string;
@@ -72,8 +72,12 @@ impl Contract {
         matchers_for_this_recipient: &MatcherAmountMap,
         matcher: &AccountId,
     ) -> Amount {
-        let existing_commitment = matchers_for_this_recipient.get(matcher).unwrap_or_else(|| panic!("{} does not currently have any funds committed to {}.",
-                matcher, recipient));
+        let existing_commitment = matchers_for_this_recipient.get(matcher).unwrap_or_else(|| {
+            panic!(
+                "{} does not currently have any funds committed to {}.",
+                matcher, recipient
+            )
+        });
         near_sdk::log!(
             "existing_commitment = {}",
             near::to_human(existing_commitment)
@@ -138,7 +142,7 @@ impl Contract {
             log!(msg);
             matchers_log.push(msg);
         }
-         format!(
+        format!(
             "These matchers are committed to match donations to {} up to a maximum of the following amounts:\n{}",
             recipient,
             matchers_log.join("\n")
@@ -199,82 +203,89 @@ impl Contract {
     }
 
     /// requested_withdrawal_amount is in NEAR (commas, underscores, and 'Ⓝ' are acceptable and will be ignored)
-    pub fn rescind_matching_funds(
-        &mut self,
-        recipient: &AccountId,
-        requested_withdrawal_amount: generic::FormattedNearString,
-    ) -> String {
-        let matcher = env::signer_account_id();
-        let matchers_for_this_recipient = self.get_expected_matchers_for_this_recipient(recipient);
-        let amount_already_committed =
-            self.get_expected_commitment(recipient, &matchers_for_this_recipient, &matcher);
-        let requested_withdrawal_amount_yocto: Amount = near_string_to_yocto(requested_withdrawal_amount);
-        let result;
-        let mut amount_to_decrease = requested_withdrawal_amount_yocto;
-        let mut new_amount = 0;
-        if requested_withdrawal_amount_yocto > amount_already_committed {
-            amount_to_decrease = amount_already_committed;
-            result =
-                format!(
-                "{} is about to rescind {} and then will not be matching donations to {} anymore",
-                &matcher, yocto_to_near_string(amount_to_decrease), recipient
-            );
-        } else {
-            new_amount = amount_already_committed - amount_to_decrease;
-            result = format!(
-                "{} is about to rescind {} and then will only be committed to match donations to {} up to a maximum of {}.",
-                 &matcher, 
-                 yocto_to_near_string(amount_to_decrease), 
-                 recipient, 
-                 yocto_to_near_string(new_amount)
-            );
-        }
-        self.set_matcher_amount(recipient, &matcher, new_amount);
-        self.transfer_from_escrow(&matcher, amount_to_decrease) // Funds go from escrow back to the matcher.
-            .then(
-                Self::ext(env::current_account_id()) // escrow contract name
-                    .with_static_gas(GAS_FOR_ACCOUNT_CALLBACK)
-                    .on_rescind_matching_funds(recipient, matcher, amount_already_committed),
-            );
-        result
-    }
+    // pub fn rescind_matching_funds(
+    //     &mut self,
+    //     recipient: &AccountId,
+    //     requested_withdrawal_amount: generic::FormattedNearString,
+    // ) -> String {
+    //     let matcher = env::signer_account_id();
+    //     let matchers_for_this_recipient = self.get_expected_matchers_for_this_recipient(recipient);
+    //     let amount_already_committed =
+    //         self.get_expected_commitment(recipient, &matchers_for_this_recipient, &matcher);
+    //     let requested_withdrawal_amount_yocto: Amount = near_string_to_yocto(requested_withdrawal_amount);
+    //     let result;
+    //     let mut amount_to_decrease = requested_withdrawal_amount_yocto;
+    //     let mut new_amount = 0;
+    //     if requested_withdrawal_amount_yocto > amount_already_committed {
+    //         amount_to_decrease = amount_already_committed;
+    //         result =
+    //             format!(
+    //             "{} is about to rescind {} and then will not be matching donations to {} anymore",
+    //             &matcher, yocto_to_near_string(amount_to_decrease), recipient
+    //         );
+    //     } else {
+    //         new_amount = amount_already_committed - amount_to_decrease;
+    //         result = format!(
+    //             "{} is about to rescind {} and then will only be committed to match donations to {} up to a maximum of {}.",
+    //              &matcher,
+    //              yocto_to_near_string(amount_to_decrease),
+    //              recipient,
+    //              yocto_to_near_string(new_amount)
+    //         );
+    //     }
+    //     self.set_matcher_amount(recipient, &matcher, new_amount);
+    //     self.transfer_from_escrow(&matcher, amount_to_decrease) // Funds go from escrow back to the matcher.
+    //         .then(
+    //             Self::ext(env::current_account_id()) // escrow contract name
+    //                 .with_static_gas(GAS_FOR_ACCOUNT_CALLBACK)
+    //                 .on_rescind_matching_funds(recipient, matcher, amount_already_committed),
+    //         );
+    //     result
+    // }
 
     // Only gets called internally by send_matching_donations.
     #[private]
-    fn record_matching_donations_as_sent(        &mut self,        donation_amount: &Amount ,        recipient: &AccountId,            ) ->(Amount,InMemoryMatcherAmountMap){
+    fn record_matching_donations_as_sent(
+        &mut self,
+        donation_amount: &Amount,
+        recipient: &AccountId,
+    ) -> (Amount, InMemoryMatcherAmountMap) {
         let mut sum_of_donations_to_send = donation_amount.clone();
         // TODO optimistically change state, then do the actual transfer, then in the callback undo the state change if the transfer failed
         let mut matchers_for_this_recipient: MatcherAmountMap =
             self.get_expected_matchers_for_this_recipient(&recipient);
-            let mut original_commitments=InMemoryMatcherAmountMap::new();
-        let matchers = matchers_for_this_recipient.keys_as_vector();        
+        let mut original_commitments = InMemoryMatcherAmountMap::new();
+        let matchers = matchers_for_this_recipient.keys_as_vector();
         for matcher in matchers.iter() {
             let existing_commitment =
-            self.get_expected_commitment(recipient, &matchers_for_this_recipient, &matcher);
+                self.get_expected_commitment(recipient, &matchers_for_this_recipient, &matcher);
             let matched_amount: u128 = cmp::min(donation_amount.clone(), existing_commitment);
             let remaining_commitment: u128 = existing_commitment - matched_amount;
             near_sdk::log!(
                 "{} will send a matching donation of {} to {}. Remaining commitment: {}.",
-    &           &matcher,
+                &&matcher,
                 yocto_to_near_string(matched_amount),
                 &recipient,
                 yocto_to_near_string(remaining_commitment)
             );
             matchers_for_this_recipient.insert(&matcher, &matched_amount);
             original_commitments.insert(matcher, existing_commitment);
-            sum_of_donations_to_send+=matched_amount;
+            sum_of_donations_to_send += matched_amount;
         }
-        
-        (sum_of_donations_to_send,original_commitments)
+
+        (sum_of_donations_to_send, original_commitments)
     }
 
     #[private] // Public - but only callable by env::current_account_id()
-    pub fn on_donate(        &mut self,        donation_amount: &Amount,         original_commitments: &InMemoryMatcherAmountMap,    ) {
+    pub fn on_donate(
+        &mut self,
+        donation_amount: &Amount,
+        original_commitments: &InMemoryMatcherAmountMap,
+    ) {
         if !did_promise_succeed() {
             // If transfer failed, change the state back to what it was:
             // TODO (and send funds back to donor?)
             // TODO Do it for every matcher of this recipient
-            
         }
     }
 
@@ -291,29 +302,32 @@ impl Contract {
             "prepaid_gas={:?}, gas_already_burned={:?}, gas_to_be_burned_during_transfer_from_escrow={:?}, remaining_gas={:?}",
             prepaid_gas,
             gas_already_burned,
-            gas_to_be_burned_during_transfer_from_escrow,   // TODO Why is Prettier not working?
+            gas_to_be_burned_during_transfer_from_escrow,
             remaining_gas
           );
-        let (sum_of_donations_to_send, original_commitments)= self.record_matching_donations_as_sent(&donation_amount,&recipient);
+        let (sum_of_donations_to_send, original_commitments) =
+            self.record_matching_donations_as_sent(&donation_amount, &recipient);
         self.transfer_from_escrow(&recipient, sum_of_donations_to_send) // The donor attached a deposit which this contract owns at this point. Immediately pass it along to the intended recipient.
-        .then(
-            Self::ext(env::current_account_id()) // escrow contract name
-        .with_static_gas(GAS_FOR_ACCOUNT_CALLBACK)
-                .on_donate(&donation_amount, &original_commitments));
+            .then(
+                Self::ext(env::current_account_id()) // escrow contract name
+                    .with_static_gas(GAS_FOR_ACCOUNT_CALLBACK)
+                    .on_donate(&donation_amount, &original_commitments),
+            );
     }
 
     #[private] // Public - but only callable by env::current_account_id()
     pub fn delete_all_matches_associated_with_recipient(&mut self, recipient: AccountId) {
         // Since self.recipients is a LookupMap (not iterable), there is no clear() function available for instantly deleting all keys.
         // ONEDAY assert_self();
-            let mut matchers_for_this_recipient: MatcherAmountMap =
+        let mut matchers_for_this_recipient: MatcherAmountMap =
             self.get_expected_matchers_for_this_recipient(&recipient);
         let matchers = matchers_for_this_recipient.keys_as_vector();
         let mut to_remove = Vec::new();
         for matcher in matchers.iter() {
-            to_remove.push(matcher); 
+            to_remove.push(matcher);
         }
-        for key in to_remove.iter(){// https://stackoverflow.com/a/45724774/470749
+        for key in to_remove.iter() {
+            // https://stackoverflow.com/a/45724774/470749
             matchers_for_this_recipient.remove(key); // If not for this loop, the contract state would be messed up, and we would later get "The collection is an inconsistent state" errors.
             near_sdk::log!("Removed {} from {}", &key, &recipient);
         }
@@ -325,7 +339,7 @@ impl Contract {
 mod tests {
     use near_sdk::test_utils::{accounts, VMContextBuilder};
 
-    use crate::generic::{yocto_to_near_string};
+    use crate::generic::yocto_to_near_string;
 
     use super::*;
 
@@ -342,16 +356,34 @@ mod tests {
     fn test_yocto_to_near() {
         // let mut context = get_context(accounts(2));
         // testing_env!(context.build());
-        
-        assert_eq!(yocto_to_near_string(3_193_264_587_249_763_651_824_729), "3.1932 Ⓝ"); // https://docs.rs/near-helper/latest/near_helper/fn.yoctonear_to_near.html
-        assert_eq!(yocto_to_near_string(21_409_258_000_000_000_000_000), "0.0214 Ⓝ"); // https://docs.rs/near-helper/latest/near_helper/fn.yoctonear_to_near.html
-        assert_eq!(yocto_to_near_string(10_000_000_000_000_000_000_000), "0.01 Ⓝ");
-        assert_eq!(yocto_to_near_string(700_000_000_000_000_000_000), "0.0007 Ⓝ");
+
+        assert_eq!(
+            yocto_to_near_string(3_193_264_587_249_763_651_824_729),
+            "3.1932 Ⓝ"
+        ); // https://docs.rs/near-helper/latest/near_helper/fn.yoctonear_to_near.html
+        assert_eq!(
+            yocto_to_near_string(21_409_258_000_000_000_000_000),
+            "0.0214 Ⓝ"
+        ); // https://docs.rs/near-helper/latest/near_helper/fn.yoctonear_to_near.html
+        assert_eq!(
+            yocto_to_near_string(10_000_000_000_000_000_000_000),
+            "0.01 Ⓝ"
+        );
+        assert_eq!(
+            yocto_to_near_string(700_000_000_000_000_000_000),
+            "0.0007 Ⓝ"
+        );
     }
 
     #[test]
     fn test_near_string_to_yocto() {
-        assert_eq!(near_string_to_yocto("3.997 Ⓝ".to_string()), 3_997_000_000_000_000_000_000_000);
-        assert_eq!(near_string_to_yocto("0.018 Ⓝ".to_string()), 18_000_000_000_000_000_000_000);
+        assert_eq!(
+            near_string_to_yocto("3.997 Ⓝ".to_string()),
+            3_997_000_000_000_000_000_000_000
+        );
+        assert_eq!(
+            near_string_to_yocto("0.018 Ⓝ".to_string()),
+            18_000_000_000_000_000_000_000
+        );
     }
 }
