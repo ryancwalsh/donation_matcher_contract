@@ -178,12 +178,10 @@ impl Contract {
         // ONEDAY assert_self(); assert_single_promise_success();
         let mut matchers_for_this_recipient =
             self.get_expected_matchers_for_this_recipient(recipient);
-        if amount > 0 {
-            let _existing_commitment =
-                self.get_expected_commitment(recipient, &matchers_for_this_recipient, matcher); // ONEDAY Assert that there is a matcher?
-            matchers_for_this_recipient.insert(matcher, &amount);
+        if amount == 0 {
+            matchers_for_this_recipient.remove(matcher);
         } else {
-            self.recipients.remove(matcher);
+            matchers_for_this_recipient.insert(matcher, &amount);
         }
 
         matchers_for_this_recipient
@@ -202,13 +200,12 @@ impl Contract {
         }
     }
 
-    /// requested_withdrawal_amount is in NEAR (commas, underscores, and 'Ⓝ' are acceptable and will be ignored)
+    /// requested_withdrawal_amount is in NEAR (commas, underscores, spaces, and 'Ⓝ' are acceptable and will be ignored)
     pub fn rescind_matching_funds(
         &mut self,
         recipient: &AccountId,
         requested_withdrawal_amount: generic::FormattedNearString,
     ) -> String {
-        // TODO rescind_matching_funds with 999 Ⓝ still has the wrong result in the commitments, and matcher keys should be removed when commitment gets down to 0
         let matcher = env::signer_account_id();
         let matchers_for_this_recipient = self.get_expected_matchers_for_this_recipient(recipient);
         let amount_already_committed =
@@ -216,25 +213,24 @@ impl Contract {
         let requested_withdrawal_amount_yocto: Amount =
             near_string_to_yocto(requested_withdrawal_amount);
         let result;
-        let mut amount_to_decrease = requested_withdrawal_amount_yocto;
-        let mut new_amount = 0;
-        if requested_withdrawal_amount_yocto > amount_already_committed {
-            amount_to_decrease = amount_already_committed;
-            result =
-                format!(
-                "{} is about to rescind {} and then will not be matching donations to {} anymore",
-                &matcher, yocto_to_near_string(amount_to_decrease), recipient
-            );
+        let amount_to_decrease =
+            cmp::min(requested_withdrawal_amount_yocto, amount_already_committed);
+        let new_amount = amount_already_committed - amount_to_decrease;
+        let end_of_msg = if new_amount > 0 {
+            format!(
+                "will only be committed to match donations to {} up to a maximum of {}",
+                recipient,
+                yocto_to_near_string(new_amount)
+            )
         } else {
-            new_amount = amount_already_committed - amount_to_decrease;
-            result = format!(
-                "{} is about to rescind {} and then will only be committed to match donations to {} up to a maximum of {}.",
-                 &matcher,
-                 yocto_to_near_string(amount_to_decrease),
-                 recipient,
-                 yocto_to_near_string(new_amount)
-            );
-        }
+            format!("will no longer be matching donations to {}", recipient,)
+        };
+        result = format!(
+            "{} is about to rescind {} and then {}.",
+            &matcher,
+            yocto_to_near_string(amount_to_decrease),
+            end_of_msg
+        );
         self.set_matcher_amount(recipient, &matcher, new_amount);
         self.transfer_from_escrow(&matcher, amount_to_decrease) // Funds go from escrow back to the matcher.
             .then(
@@ -252,6 +248,7 @@ impl Contract {
         donation_amount: &Amount,
         recipient: &AccountId,
     ) -> (Amount, InMemoryMatcherAmountMap) {
+        // TODO: Fix "The collection is an inconsistent state"
         let mut sum_of_donations_to_send = *donation_amount;
         let mut matchers_for_this_recipient: MatcherAmountMap =
             self.get_expected_matchers_for_this_recipient(recipient);
@@ -273,8 +270,11 @@ impl Contract {
                 &recipient,
                 yocto_to_near_string(remaining_commitment)
             );
-            matchers_for_this_recipient.insert(&matcher, &remaining_commitment);
-            // TODO Matcher keys should be removed when commitment gets down to 0
+            if &remaining_commitment == &0 {
+                matchers_for_this_recipient.remove(&matcher);
+            } else {
+                matchers_for_this_recipient.insert(&matcher, &remaining_commitment);
+            }
             original_commitments.insert(matcher, existing_commitment);
             sum_of_donations_to_send += matched_amount;
         }
