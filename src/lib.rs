@@ -252,28 +252,29 @@ impl Contract {
         recipient: &AccountId,
     ) -> (Amount, InMemoryMatcherAmountMap) {
         let mut sum_of_donations_to_send = donation_amount.clone();
-        // TODO optimistically change state, then do the actual transfer, then in the callback undo the state change if the transfer failed
         let mut matchers_for_this_recipient: MatcherAmountMap =
             self.get_expected_matchers_for_this_recipient(&recipient);
         let mut original_commitments = InMemoryMatcherAmountMap::new();
-        let matchers = matchers_for_this_recipient.keys_as_vector();
-        for matcher in matchers.iter() {
+        // let mut matcher_keys = Vec::new();
+        // for matcher in matchers.iter() {
+        //     matcher_keys.push(matcher);
+        // }
+        for matcher in matchers_for_this_recipient.keys() {
             let existing_commitment =
-                self.get_expected_commitment(recipient, &matchers_for_this_recipient, &matcher);
+                self.get_expected_commitment(&recipient, &matchers_for_this_recipient, &matcher);
             let matched_amount: u128 = cmp::min(donation_amount.clone(), existing_commitment);
             let remaining_commitment: u128 = existing_commitment - matched_amount;
             near_sdk::log!(
                 "{} will send a matching donation of {} to {}. Remaining commitment: {}.",
-                &&matcher,
+                &matcher,
                 yocto_to_near_string(matched_amount),
                 &recipient,
                 yocto_to_near_string(remaining_commitment)
             );
-            matchers_for_this_recipient.insert(&matcher, &matched_amount);
+            // TODO: matchers_for_this_recipient.insert(&matcher, &matched_amount);
             original_commitments.insert(matcher, existing_commitment);
             sum_of_donations_to_send += matched_amount;
         }
-
         (sum_of_donations_to_send, original_commitments)
     }
 
@@ -307,12 +308,12 @@ impl Contract {
             remaining_gas
           );
         let (sum_of_donations_to_send, original_commitments) =
-            self.record_matching_donations_as_sent(&donation_amount, &recipient);
-        self.transfer_from_escrow(&recipient, sum_of_donations_to_send) // The donor attached a deposit which this contract owns at this point. Immediately pass it along to the intended recipient.
+            self.record_matching_donations_as_sent(&donation_amount, &recipient); // Optimistically change state.
+        self.transfer_from_escrow(&recipient, sum_of_donations_to_send) // Then do the actual transfer. The donor attached a deposit which this contract owns at this point. Immediately pass it along to the intended recipient along with all matching funds.
             .then(
                 Self::ext(env::current_account_id()) // escrow contract name
                     .with_static_gas(GAS_FOR_ACCOUNT_CALLBACK)
-                    .on_donate(&donation_amount, &original_commitments),
+                    .on_donate(&donation_amount, &original_commitments), //In the callback, undo the state change if the transfer failed.
             );
     }
 
