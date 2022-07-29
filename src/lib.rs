@@ -129,7 +129,7 @@ impl Contract {
         result
     }
 
-    pub fn get_commitments(&self, recipient: AccountId) -> String {
+    pub fn get_commitments(&self, recipient: &AccountId) -> String {
         let mut matchers_log: Vec<String> = Vec::new();
         let matchers_for_this_recipient: MatcherAmountMap =
             self.get_expected_matchers_for_this_recipient(&recipient);
@@ -241,6 +241,7 @@ impl Contract {
                     .with_static_gas(GAS_FOR_ACCOUNT_CALLBACK)
                     .on_rescind_matching_funds(recipient, matcher, amount_already_committed),
             );
+        near_sdk::log!(result);
         result
     }
 

@@ -102,7 +102,7 @@ near view $CONTRACT get_commitments "{\"recipient\": \"$RECIPIENT\"}"
 near state $MATCHER1 |  sed -n "s/.*formattedAmount: '\([^\\]*\).*'/\1/p"
 ```
 
-(Matcher1 should now only have 0.3 - 0.02 = 0.28 committed to this Recipient. The CLI/Explorer should now also show Matcher1's balance as ~0.72.)
+(Matcher1 should now only have 0.30 - 0.02 = 0.28 committed to this Recipient. The CLI/Explorer should now also show Matcher1's balance as ~0.72.)
 
 ```
 near call $CONTRACT donate "{\"recipient\": \"$RECIPIENT\"}" --accountId $DONOR --deposit .1 --gas 300000000000000
