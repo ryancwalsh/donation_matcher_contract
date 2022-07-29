@@ -275,8 +275,10 @@ impl Contract {
                 yocto_to_near_string(remaining_commitment)
             );
             if &remaining_commitment == &0 {
+                near_sdk::log!("Zero remains. Removing {}", &matcher);
                 matchers_for_this_recipient.remove(&matcher);
             } else {
+                near_sdk::log!("Overwriting {} with {}", &matcher, &remaining_commitment);
                 matchers_for_this_recipient.insert(&matcher, &remaining_commitment);
             }
             original_commitments.insert(matcher, existing_commitment);
@@ -298,7 +300,7 @@ impl Contract {
     }
 
     #[payable] // Public - People can attach money
-    pub fn donate(&mut self, recipient: AccountId) {
+    pub fn donate(&mut self, recipient: &AccountId) {
         let donation_amount: Amount = env::attached_deposit();
         assert!(donation_amount > 0, "Attaching some yoctoNEAR is required.");
         let prepaid_gas = env::prepaid_gas();

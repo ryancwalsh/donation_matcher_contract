@@ -67,6 +67,7 @@ mod lib_tests {
             near_string_to_yocto("1".to_string()),
             near_string_to_yocto("0.1".to_string()),
         );
+        contract.donate(&recipient);
         let result_after_donation = contract.get_commitments(&recipient);
         assert_eq!(result_after_donation, "These matchers are committed to match donations to alice up to a maximum of the following amounts:\nbob: 0.18 Ⓝ,".to_string());
     }
