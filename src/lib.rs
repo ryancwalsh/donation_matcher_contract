@@ -81,7 +81,8 @@ impl Contract {
             )
         });
         near_sdk::log!(
-            "existing_commitment = {}",
+            "get_expected_commitment. matcher = {}, existing_commitment = {}",
+            matcher,
             near::to_human(existing_commitment)
         );
         existing_commitment
@@ -107,14 +108,15 @@ impl Contract {
         let existing_commitment = matchers_for_this_recipient.get(&matcher).unwrap_or(0);
         near_sdk::log!(
             "existing_commitment {}",
-            yocto_to_near_string(existing_commitment)
+            yocto_to_near_string(&existing_commitment)
         );
         let updated_commitment = donation_amount + existing_commitment;
         near_sdk::log!(
             "updated_commitment {}",
-            yocto_to_near_string(updated_commitment)
+            yocto_to_near_string(&updated_commitment)
         );
         matchers_for_this_recipient.insert(&matcher, &updated_commitment);
+        near_sdk::log!("inserted {}", &matcher);
 
         self.recipients
             .insert(&recipient, &matchers_for_this_recipient);
@@ -123,7 +125,7 @@ impl Contract {
             "{} is now committed to match donations to {} up to a maximum of {}.",
             matcher,
             recipient,
-            yocto_to_near_string(donation_amount)
+            yocto_to_near_string(&donation_amount)
         );
         log!(result);
         result
@@ -133,22 +135,35 @@ impl Contract {
         let mut matchers_log: Vec<String> = Vec::new();
         let matchers_for_this_recipient: MatcherAmountMap =
             self.get_expected_matchers_for_this_recipient(&recipient);
+        near_sdk::log!("______{}", matchers_for_this_recipient.len()); // TODO: Why does this show "2" when running test_offer_matching_funds_and_get_commitments_and_rescind_matching_funds_and_donate even though line 296 (of this commit) says "1"?
         let matchers = matchers_for_this_recipient.keys_as_vector();
-        for (_, matcher) in matchers.iter().enumerate() {
-            let existing_commitment = matchers_for_this_recipient.get(&matcher).unwrap();
+        // for matcher in matchers.iter() {
+        //     near_sdk::log!("get_commitments. matcher = {}", &matcher);
+        // }
+        // for (key, val) in matchers.iter().enumerate() {
+        //     near_sdk::log!("Key={}, Value={}", key, val);
+        // }
+
+        for matcher in matchers.iter() {
+            //near_sdk::log!("get_commitments. matcher = {}", &matcher);
+            let existing_commitment =
+                self.get_expected_commitment(recipient, &matchers_for_this_recipient, &matcher);
             let msg = format!(
                 "{}: {},",
                 matcher,
-                yocto_to_near_string(existing_commitment)
+                yocto_to_near_string(&existing_commitment)
             );
-            log!(msg);
+            //log!(msg);
             matchers_log.push(msg);
+            near_sdk::log!("matchers_log before loop is finished = {:#?}", matchers_log);
         }
-        format!(
+        let result = format!(
             "These matchers are committed to match donations to {} up to a maximum of the following amounts:\n{}",
             recipient,
             matchers_log.join("\n")
-            )
+            );
+        log!(result);
+        result
         // ONEDAY: Instead of returning a log message, simply log the message. Return a JSON string of the matchers_for_this_recipient.
     }
 
@@ -157,7 +172,7 @@ impl Contract {
         log!(
             "transfer_from_escrow destination_account: {}, amount: {}",
             destination_account,
-            yocto_to_near_string(amount)
+            yocto_to_near_string(&amount)
         );
         Promise::new(destination_account.clone()).transfer(amount) // https://www.near-sdk.io/cross-contract/callbacks#calculator-example uses .clone()
     }
@@ -176,7 +191,7 @@ impl Contract {
             "set_matcher_amount(recipient: {}, matcher: {}, amount: {})",
             &recipient,
             &matcher,
-            &yocto_to_near_string(amount)
+            &yocto_to_near_string(&amount)
         );
         // ONEDAY assert_self(); assert_single_promise_success();
         let mut matchers_for_this_recipient =
@@ -185,6 +200,7 @@ impl Contract {
             matchers_for_this_recipient.remove(matcher);
         } else {
             matchers_for_this_recipient.insert(matcher, &amount);
+            near_sdk::log!("inserted {}", &matcher);
         }
 
         matchers_for_this_recipient
@@ -223,7 +239,7 @@ impl Contract {
             format!(
                 "will only be committed to match donations to {} up to a maximum of {}",
                 recipient,
-                yocto_to_near_string(new_amount)
+                yocto_to_near_string(&new_amount)
             )
         } else {
             format!("will no longer be matching donations to {}", recipient,)
@@ -231,7 +247,7 @@ impl Contract {
         result = format!(
             "{} is about to rescind {} and then {}.",
             &matcher,
-            yocto_to_near_string(amount_to_decrease),
+            yocto_to_near_string(&amount_to_decrease),
             end_of_msg
         );
         self.set_matcher_amount(recipient, &matcher, new_amount);
@@ -270,20 +286,30 @@ impl Contract {
             near_sdk::log!(
                 "{} will send a matching donation of {} to {}. Remaining commitment: {}.",
                 &matcher,
-                yocto_to_near_string(matched_amount),
+                yocto_to_near_string(&matched_amount),
                 &recipient,
-                yocto_to_near_string(remaining_commitment)
+                yocto_to_near_string(&remaining_commitment)
             );
             if &remaining_commitment == &0 {
                 near_sdk::log!("Zero remains. Removing {}", &matcher);
                 matchers_for_this_recipient.remove(&matcher);
+                near_sdk::log!("len = {}", matchers_for_this_recipient.len()); // TODO See line 138 of this commit.
             } else {
-                near_sdk::log!("Overwriting {} with {}", &matcher, &remaining_commitment);
+                near_sdk::log!(
+                    "Overwriting {} with {}",
+                    &matcher,
+                    yocto_to_near_string(&remaining_commitment)
+                );
                 matchers_for_this_recipient.insert(&matcher, &remaining_commitment);
+                near_sdk::log!("inserted {}", &matcher);
             }
             original_commitments.insert(matcher, existing_commitment);
             sum_of_donations_to_send += matched_amount;
         }
+        near_sdk::log!(
+            "sum_of_donations_to_send={}",
+            yocto_to_near_string(&sum_of_donations_to_send),
+        );
         (sum_of_donations_to_send, original_commitments)
     }
 

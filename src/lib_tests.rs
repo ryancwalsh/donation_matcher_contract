@@ -27,7 +27,7 @@ mod lib_tests {
         log!(
             "_________ account_balance. {:?}: {:?}",
             env::current_account_id(),
-            yocto_to_near_string(env::account_balance())
+            yocto_to_near_string(&env::account_balance())
         );
     }
 

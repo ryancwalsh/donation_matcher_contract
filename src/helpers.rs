@@ -24,7 +24,7 @@ pub mod generic {
     }
 
     /// Helper function to convert yoctoNEAR to $NEAR with _ decimals of precision.
-    pub(crate) fn yocto_to_near(amount_in_yocto: u128, decimal_places: u32) -> f64 {
+    pub(crate) fn yocto_to_near(amount_in_yocto: &u128, decimal_places: u32) -> f64 {
         // TODO: Audit
         let precision_multiplier = u128::pow(10, decimal_places);
         let formatted_near = amount_in_yocto * precision_multiplier / YOCTO_FACTOR;
@@ -32,8 +32,8 @@ pub mod generic {
     }
 
     /// Helper function to convert yoctoNEAR to $NEAR with _ decimals of precision.
-    pub(crate) fn yocto_to_near_string(yocto: u128) -> String {
-        let numeric = yocto_to_near(yocto, DEFAULT_DECIMAL_PLACES);
+    pub(crate) fn yocto_to_near_string(yocto: &u128) -> String {
+        let numeric = yocto_to_near(&yocto, DEFAULT_DECIMAL_PLACES);
         // ONEDAY: Add underscores or commas as thousands separators
         numeric.to_string() + " Ⓝ"
     }
