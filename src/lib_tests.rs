@@ -17,7 +17,7 @@ mod lib_tests {
         let context = VMContextBuilder::new()
             .signer_account_id(accounts(account_index))
             .is_view(is_view)
-            .account_balance(starting_balance)
+            .account_balance(starting_balance) // TODO: Change this such that set_context isn't always resetting the balance.
             .attached_deposit(deposit)
             .build();
         testing_env!(context);
@@ -32,7 +32,7 @@ mod lib_tests {
     }
 
     #[test]
-    fn test_offer_matching_funds_and_get_commitments() {
+    fn test_offer_matching_funds_and_get_commitments_and_rescind_matching_funds_and_donate() {
         let mut contract = Contract::new();
         set_context(
             1,
@@ -61,5 +61,13 @@ mod lib_tests {
         // TODO: Assert funds received via transfer. Check state.
         let result_after_rescind = contract.get_commitments(&recipient);
         assert_eq!(result_after_rescind, "These matchers are committed to match donations to alice up to a maximum of the following amounts:\nbob: 0.28 Ⓝ,\ncharlie: 0.1 Ⓝ,".to_string());
+        set_context(
+            3,
+            false,
+            near_string_to_yocto("1".to_string()),
+            near_string_to_yocto("0.1".to_string()),
+        );
+        let result_after_donation = contract.get_commitments(&recipient);
+        assert_eq!(result_after_donation, "These matchers are committed to match donations to alice up to a maximum of the following amounts:\nbob: 0.18 Ⓝ,".to_string());
     }
 }
