@@ -49,13 +49,13 @@ pub mod generic {
         let near: f64 = cleaned.parse().expect("Could not convert NEAR from string to yoctoNEAR integer. Please check the formatting of your string.");
         let precision = u128::pow(10, DEFAULT_DECIMAL_PLACES);
         let padded = (near * precision as f64) as u128 * YOCTO_FACTOR;
-        near_sdk::log!("precision={}, near={}, padded={}", precision, near, padded);
+        //near_sdk::log!("precision={}, near={}, padded={}", precision, near, padded);
         let yocto = padded as u128 / precision;
-        near_sdk::log!(
-            "near_string_to_yocto converted {} (FormattedNear) to {} (yoctoNEAR)",
-            near_string,
-            yocto
-        );
+        // near_sdk::log!(
+        //     "near_string_to_yocto converted {} (FormattedNear) to {} (yoctoNEAR)",
+        //     near_string,
+        //     yocto
+        // );
         yocto
     }
 }
