@@ -32,14 +32,14 @@ pub mod generic {
     }
 
     /// Helper function to convert yoctoNEAR to $NEAR with _ decimals of precision.
-    pub(crate) fn yocto_to_near_string(yocto: &u128) -> String {
+    pub fn yocto_to_near_string(yocto: &u128) -> String {
         let numeric = yocto_to_near(&yocto, DEFAULT_DECIMAL_PLACES);
         // ONEDAY: Add underscores or commas as thousands separators
         numeric.to_string() + " Ⓝ"
     }
 
     /// Convert $NEAR to yoctoNEAR.
-    pub(crate) fn near_string_to_yocto(near_string: FormattedNearString) -> u128 {
+    pub fn near_string_to_yocto(near_string: FormattedNearString) -> u128 {
         let cleaned = near_string
             .replace(',', "")
             .replace('_', "")
