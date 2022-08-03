@@ -27,6 +27,11 @@ async fn create_subaccount(
     Ok(subaccount)
 }
 
+async fn assert_balance(worker: &Worker<Sandbox>, account: &Account, expected: &str) {
+    let current_balance = &&account.view_account(&worker).await.unwrap().balance;
+    assert_eq!(yocto_to_near_string(current_balance), expected.to_string());
+}
+
 #[test(tokio::test)]
 async fn test_offer_matching_funds_and_get_commitments_and_rescind_matching_funds_and_donate(
 ) -> anyhow::Result<()> {
@@ -44,10 +49,7 @@ async fn test_offer_matching_funds_and_get_commitments_and_rescind_matching_fund
 
     let recipient = create_subaccount(&worker, &parent_account, "recipient", "1 Ⓝ").await?;
 
-    assert_eq!(
-        yocto_to_near_string(&recipient.view_account(&worker).await?.balance),
-        "1 Ⓝ".to_string()
-    );
+    assert_balance(&worker, &recipient, "1 Ⓝ").await?;
 
     let matcher1 = create_subaccount(&worker, &parent_account, "matcher1", "1 Ⓝ").await?;
 
@@ -60,14 +62,8 @@ async fn test_offer_matching_funds_and_get_commitments_and_rescind_matching_fund
         .transact()
         .await?;
 
-    assert_eq!(
-        yocto_to_near_string(&recipient.view_account(&worker).await?.balance),
-        "1 Ⓝ".to_string()
-    ); // The recipient hasn't received any donation yet.
-    assert_eq!(
-        yocto_to_near_string(&matcher1.view_account(&worker).await?.balance),
-        "0.7 Ⓝ".to_string()
-    );
+    assert_balance(&worker, &recipient, "1 Ⓝ").await?; // The recipient hasn't received any donation yet.
+    assert_balance(&worker, &matcher1, "0.7 Ⓝ").await?;
 
     // TODO: Write the rest of the test.
 
