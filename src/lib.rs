@@ -135,15 +135,11 @@ impl Contract {
         let mut matchers_log: Vec<String> = Vec::new();
         let matchers_for_this_recipient: MatcherAmountMap =
             self.get_expected_matchers_for_this_recipient(&recipient);
-        near_sdk::log!("______{}", matchers_for_this_recipient.len()); // TODO: Why does this show "2" when running test_offer_matching_funds_and_get_commitments_and_rescind_matching_funds_and_donate even though line 296 (of this commit) says "1"?
+        near_sdk::log!(
+            "______ get_commitments matchers_for_this_recipient.len() {}",
+            matchers_for_this_recipient.len()
+        ); // TODO: Why does this show "2" when running test_offer_matching_funds_and_get_commitments_and_rescind_matching_funds_and_donate even though line 296 (of this commit) says "1"?
         let matchers = matchers_for_this_recipient.keys_as_vector();
-        // for matcher in matchers.iter() {
-        //     near_sdk::log!("get_commitments. matcher = {}", &matcher);
-        // }
-        // for (key, val) in matchers.iter().enumerate() {
-        //     near_sdk::log!("Key={}, Value={}", key, val);
-        // }
-
         for matcher in matchers.iter() {
             //near_sdk::log!("get_commitments. matcher = {}", &matcher);
             let existing_commitment =
@@ -271,7 +267,7 @@ impl Contract {
         // TODO: Fix "The collection is an inconsistent state"
         let mut sum_of_donations_to_send = *donation_amount;
         let mut matchers_for_this_recipient: MatcherAmountMap =
-            self.get_expected_matchers_for_this_recipient(recipient);
+            self.get_expected_matchers_for_this_recipient(&recipient);
         let mut original_commitments = InMemoryMatcherAmountMap::new();
         let mut matcher_keys = Vec::new();
         for matcher in matchers_for_this_recipient.keys() {
