@@ -8,7 +8,6 @@ use donation_matcher_contract::{
     GAS_FOR_ACCOUNT_CALLBACK,
 };
 use near_sdk::{serde_json::json, Balance};
-use serde_json::{Map, Value};
 use test_log::test;
 use workspaces::{network::Sandbox, prelude::*, Account, Worker};
 
@@ -136,10 +135,15 @@ async fn test_offer_matching_funds_and_get_commitments_and_rescind_matching_fund
         .await?
         .json()
         .unwrap();
-    let mut map = Map::new();
-    map.insert(matcher1.id().to_string(), Value::String(matcher1_offer1));
-    map.insert(matcher2.id().to_string(), Value::String(matcher2_offer1));
-    assert_eq!(commitments_result, Value::Object(map).to_string());
+
+    assert_eq!(
+        commitments_result,
+        json!({
+            matcher1.id().to_string(): matcher1_offer1,
+            matcher2.id().to_string(): matcher2_offer1
+        })
+        .to_string()
+    );
 
     // TODO: Write the rest of the test.
 
