@@ -28,7 +28,7 @@ async fn create_subaccount(
 }
 
 fn assert_approx_considering_gas(amount1: &Balance, amount2str: &str) {
-    const TOLERANCE: &str = &"0.0059 Ⓝ";
+    const TOLERANCE: &str = &"0.0061 Ⓝ";
     let tolerance: Balance = near_string_to_yocto(&TOLERANCE.to_string());
     let amount2 = &near_string_to_yocto(&amount2str.to_string());
     assert!(amount1 <= amount2);
@@ -79,6 +79,22 @@ async fn test_offer_matching_funds_and_get_commitments_and_rescind_matching_fund
         "1 Ⓝ".to_string()
     ); // The recipient hasn't received any donation yet.
     assert_approx_considering_gas(&matcher1.view_account(&worker).await?.balance, "0.7 Ⓝ");
+
+    let matcher2 = create_subaccount(&worker, &parent_account, "matcher2", "1 Ⓝ").await?;
+
+    let _matcher2_offer_result = matcher2
+        .call(&worker, contract.id(), "offer_matching_funds")
+        .args_json(json!({"recipient": &recipient.id()}))?
+        .gas(GAS_FOR_ACCOUNT_CALLBACK.0)
+        .deposit(near_string_to_yocto(&"0.1".to_string()))
+        .transact()
+        .await?;
+
+    assert_eq!(
+        yocto_to_near_string(&recipient.view_account(&worker).await?.balance),
+        "1 Ⓝ".to_string()
+    ); // The recipient hasn't received any donation yet.
+    assert_approx_considering_gas(&matcher2.view_account(&worker).await?.balance, "0.9 Ⓝ");
 
     // TODO: Write the rest of the test.
 
