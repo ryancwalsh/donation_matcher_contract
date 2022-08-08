@@ -28,11 +28,11 @@ mod helpers_tests {
     #[test]
     fn test_near_string_to_yocto() {
         assert_eq!(
-            near_string_to_yocto("3.997 Ⓝ".to_string()),
+            near_string_to_yocto(&"3.997 Ⓝ".to_string()),
             3_997_000_000_000_000_000_000_000
         );
         assert_eq!(
-            near_string_to_yocto("0.018 Ⓝ".to_string()),
+            near_string_to_yocto(&"0.018 Ⓝ".to_string()),
             18_000_000_000_000_000_000_000
         );
     }
