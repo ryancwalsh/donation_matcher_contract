@@ -28,10 +28,9 @@ async fn create_subaccount(
     Ok(subaccount)
 }
 
-fn assert_approx_considering_gas(amount1: &Balance, amount2str: &str) {
+fn assert_approx_considering_gas(amount1: &Balance, amount2: &Balance) {
     const TOLERANCE: &str = &"0.0061 Ⓝ";
     let tolerance: Balance = near_string_to_yocto(&TOLERANCE.to_string());
-    let amount2 = &near_string_to_yocto(&amount2str.to_string());
     assert!(amount1 <= amount2);
     near_sdk::log!("amount1 {} <= amount2 {}", amount1, amount2);
     near_sdk::log!("tolerance = {}", tolerance);
@@ -58,44 +57,76 @@ async fn test_offer_matching_funds_and_get_commitments_and_rescind_matching_fund
         .transact()
         .await?;
 
-    let recipient = create_subaccount(&worker, &parent_account, "recipient", "1 Ⓝ").await?;
+    let starting_balance_for_each_acct = "1 Ⓝ".to_string();
+    let matcher1_offer1 = "0.3 Ⓝ".to_string();
+    let matcher2_offer1 = "0.1 Ⓝ".to_string();
+
+    let recipient = create_subaccount(
+        &worker,
+        &parent_account,
+        "recipient",
+        starting_balance_for_each_acct.as_str(),
+    )
+    .await?;
 
     assert_eq!(
         yocto_to_near_string(&recipient.view_account(&worker).await?.balance),
-        "1 Ⓝ".to_string()
+        starting_balance_for_each_acct
     );
 
-    let matcher1 = create_subaccount(&worker, &parent_account, "matcher1", "1 Ⓝ").await?;
+    let matcher1 = create_subaccount(
+        &worker,
+        &parent_account,
+        "matcher1",
+        starting_balance_for_each_acct.as_str(),
+    )
+    .await?;
 
     let _matcher1_offer_result = matcher1
         .call(&worker, contract.id(), "offer_matching_funds")
         .args_json(json!({"recipient": &recipient.id()}))?
         .gas(GAS_FOR_ACCOUNT_CALLBACK.0)
-        .deposit(near_string_to_yocto(&"0.3 Ⓝ".to_string()))
+        .deposit(near_string_to_yocto(&matcher1_offer1.to_string()))
         .transact()
         .await?;
 
     assert_eq!(
         yocto_to_near_string(&recipient.view_account(&worker).await?.balance),
-        "1 Ⓝ".to_string()
+        starting_balance_for_each_acct
     ); // The recipient hasn't received any donation yet.
-    assert_approx_considering_gas(&matcher1.view_account(&worker).await?.balance, "0.7 Ⓝ");
+    let matcher1_bal_after_offer1 = &near_string_to_yocto(&starting_balance_for_each_acct)
+        - &near_string_to_yocto(&matcher1_offer1.to_string());
+    assert_approx_considering_gas(
+        &matcher1.view_account(&worker).await?.balance,
+        &matcher1_bal_after_offer1,
+    );
 
-    let matcher2 = create_subaccount(&worker, &parent_account, "matcher2", "1 Ⓝ").await?;
+    let matcher2 = create_subaccount(
+        &worker,
+        &parent_account,
+        "matcher2",
+        starting_balance_for_each_acct.as_str(),
+    )
+    .await?;
 
     let _matcher2_offer_result = matcher2
         .call(&worker, contract.id(), "offer_matching_funds")
         .args_json(json!({"recipient": &recipient.id()}))?
         .gas(GAS_FOR_ACCOUNT_CALLBACK.0)
-        .deposit(near_string_to_yocto(&"0.1 Ⓝ".to_string()))
+        .deposit(near_string_to_yocto(&matcher2_offer1.to_string()))
         .transact()
         .await?;
 
     assert_eq!(
         yocto_to_near_string(&recipient.view_account(&worker).await?.balance),
-        "1 Ⓝ".to_string()
+        starting_balance_for_each_acct
     ); // The recipient hasn't received any donation yet.
-    assert_approx_considering_gas(&matcher2.view_account(&worker).await?.balance, "0.9 Ⓝ");
+    let matcher2_bal_after_offer1 = &near_string_to_yocto(&starting_balance_for_each_acct)
+        - &near_string_to_yocto(&matcher2_offer1.to_string());
+    assert_approx_considering_gas(
+        &matcher2.view_account(&worker).await?.balance,
+        &matcher2_bal_after_offer1,
+    );
 
     let commitments_result: String = contract
         .call(&worker, "get_commitments")
@@ -106,14 +137,8 @@ async fn test_offer_matching_funds_and_get_commitments_and_rescind_matching_fund
         .json()
         .unwrap();
     let mut map = Map::new();
-    map.insert(
-        matcher1.id().to_string(),
-        Value::String("0.3 Ⓝ".to_string()),
-    );
-    map.insert(
-        matcher2.id().to_string(),
-        Value::String("0.1 Ⓝ".to_string()),
-    );
+    map.insert(matcher1.id().to_string(), Value::String(matcher1_offer1));
+    map.insert(matcher2.id().to_string(), Value::String(matcher2_offer1));
     assert_eq!(commitments_result, Value::Object(map).to_string());
 
     // TODO: Write the rest of the test.
