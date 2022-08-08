@@ -7,7 +7,7 @@ use donation_matcher_contract::{
     generic::{near_string_to_yocto, yocto_to_near_string},
     GAS_FOR_ACCOUNT_CALLBACK,
 };
-use near_sdk::{serde_json::json, Balance};
+use near_sdk::{log, serde_json::json, Balance};
 use test_log::test;
 use workspaces::{network::Sandbox, prelude::*, Account, Worker};
 
@@ -30,9 +30,14 @@ async fn create_subaccount(
 fn assert_approx_considering_gas(amount1: &Balance, amount2: &Balance) {
     const TOLERANCE: &str = &"0.0061 Ⓝ";
     let tolerance: Balance = near_string_to_yocto(&TOLERANCE.to_string());
-    assert!(amount1 <= amount2);
-    near_sdk::log!("amount1 {} <= amount2 {}", amount1, amount2);
-    near_sdk::log!("tolerance = {}", tolerance);
+    assert!(
+        amount1 <= amount2,
+        "amount1 = {}, amount2 = {}",
+        yocto_to_near_string(amount1),
+        yocto_to_near_string(amount2)
+    );
+    log!("amount1 {} <= amount2 {}", amount1, amount2);
+    log!("tolerance = {}", tolerance);
     assert!(
         amount1 >= &(*amount2 - &tolerance),
         "Check whether gas used <= the tolerance specified in this assertion. {}. Formatted: {}",
@@ -49,6 +54,11 @@ async fn test_offer_matching_funds_and_get_commitments_and_rescind_matching_fund
         .dev_deploy(&include_bytes!("../target/res/donation_matcher_contract.wasm").to_vec())
         .await?;
     let parent_account = worker.dev_create_account().await?;
+    assert_approx_considering_gas(
+        &parent_account.view_account(&worker).await?.balance,
+        &near_string_to_yocto(&"100 Ⓝ".to_string()),
+    );
+
     contract
         .call(&worker, "new")
         //.args_json(json!({"recipient": &recipient.id()}))?
@@ -60,6 +70,7 @@ async fn test_offer_matching_funds_and_get_commitments_and_rescind_matching_fund
     let matcher1_offer = "0.3 Ⓝ".to_string();
     let matcher2_offer = "0.1 Ⓝ".to_string();
     let matcher1_rescind = "0.02 Ⓝ".to_string();
+    let donation = "0.1 Ⓝ".to_string();
 
     let recipient = create_subaccount(
         &worker,
@@ -86,7 +97,7 @@ async fn test_offer_matching_funds_and_get_commitments_and_rescind_matching_fund
         .call(&worker, contract.id(), "offer_matching_funds")
         .args_json(json!({"recipient": &recipient.id()}))?
         .gas(GAS_FOR_ACCOUNT_CALLBACK.0)
-        .deposit(near_string_to_yocto(&matcher1_offer.to_string()))
+        .deposit(near_string_to_yocto(&matcher1_offer))
         .transact()
         .await?;
 
@@ -113,7 +124,7 @@ async fn test_offer_matching_funds_and_get_commitments_and_rescind_matching_fund
         .call(&worker, contract.id(), "offer_matching_funds")
         .args_json(json!({"recipient": &recipient.id()}))?
         .gas(GAS_FOR_ACCOUNT_CALLBACK.0)
-        .deposit(near_string_to_yocto(&matcher2_offer.to_string()))
+        .deposit(near_string_to_yocto(&matcher2_offer))
         .transact()
         .await?;
 
@@ -175,7 +186,58 @@ async fn test_offer_matching_funds_and_get_commitments_and_rescind_matching_fund
         .to_string()
     );
 
-    // TODO: Write the rest of the test.
+    log!(
+        "parent_account balance = {}",
+        yocto_to_near_string(&parent_account.view_account(&worker).await?.balance)
+    );
+    /*let donor = create_subaccount(
+            &worker,
+            &parent_account,
+            "donor",
+            starting_balance_for_each_acct.as_str(),
+        )
+        .await?;
+        let _donate_result = donor
+            .call(&worker, contract.id(), "donate")
+            .args_json(json!({"recipient": &recipient.id()}))?
+            .deposit(near_string_to_yocto(&donation))
+            .gas(GAS_FOR_ACCOUNT_CALLBACK.0)
+            .transact()
+            .await?;
 
+        let recipient_donor_bal =
+            near_string_to_yocto(&starting_balance_for_each_acct) - &near_string_to_yocto(&donation);
+        assert_approx_considering_gas(
+            &donor.view_account(&worker).await?.balance,
+            &recipient_donor_bal,
+        );
+        let recipient_expected_bal = near_string_to_yocto(&starting_balance_for_each_acct)
+            + (3 * &near_string_to_yocto(&donation)); // 3x because 1 donor + 2 matchers that were able to fully match this donation amount.
+        assert_approx_considering_gas(
+            &recipient.view_account(&worker).await?.balance,
+            &recipient_expected_bal,
+        );
+        // TODO assert_approx_considering_gas(&matcher1.view_account(&worker).await?.balance, &xxx);
+        // TODO assert_approx_considering_gas(&matcher2.view_account(&worker).await?.balance, &xxx);
+
+        // let commitments_result3: String = contract
+        //     .call(&worker, "get_commitments")
+        //     .args_json(json!({"recipient": &recipient.id()}))?
+        //     .gas(GAS_FOR_ACCOUNT_CALLBACK.0)
+        //     .transact()
+        //     .await?
+        //     .json()
+        //     .unwrap();
+
+        // let matcher1_offer_after_donation = &near_string_to_yocto(&xxx) - &near_string_to_yocto(&xxx);
+        // assert_eq!(
+        //     commitments_result3,
+        //     json!({
+        //         matcher1.id().to_string(): yocto_to_near_string(&matcher1_offer_after_donation),
+        //     })
+        //     .to_string()
+        // );
+        // TODO: Write the rest of the test.
+    */
     Ok(())
 }
