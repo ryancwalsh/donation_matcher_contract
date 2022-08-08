@@ -8,6 +8,7 @@ use near_sdk::{
     Promise,
 };
 use near_units::near;
+use serde_json::{Map, Value};
 use std::cmp;
 use std::collections::HashMap;
 use witgen::witgen;
@@ -132,7 +133,7 @@ impl Contract {
     }
 
     pub fn get_commitments(&self, recipient: &AccountId) -> String {
-        let mut matchers_log: Vec<String> = Vec::new();
+        let mut map = Map::new();
         let matchers_for_this_recipient: MatcherAmountMap =
             self.get_expected_matchers_for_this_recipient(&recipient);
         near_sdk::log!(
@@ -144,23 +145,20 @@ impl Contract {
             //near_sdk::log!("get_commitments. matcher = {}", &matcher);
             let existing_commitment =
                 self.get_expected_commitment(recipient, &matchers_for_this_recipient, &matcher);
-            let msg = format!(
-                "{}: {},",
-                matcher,
-                yocto_to_near_string(&existing_commitment)
+            map.insert(
+                matcher.to_string(),
+                Value::String(yocto_to_near_string(&existing_commitment)),
             );
-            //log!(msg);
-            matchers_log.push(msg);
-            near_sdk::log!("matchers_log before loop is finished = {:#?}", matchers_log);
         }
-        let result = format!(
+        let result = Value::Object(map).to_string();
+        let log_msg =format!(
             "These matchers are committed to match donations to {} up to a maximum of the following amounts:\n{}",
             recipient,
-            matchers_log.join("\n")
+            &result
             );
+        log!(log_msg);
         log!(result);
         result
-        // ONEDAY: Instead of returning a log message, simply log the message. Return a JSON string of the matchers_for_this_recipient.
     }
 
     pub fn transfer_from_escrow(&self, destination_account: &AccountId, amount: Amount) -> Promise {

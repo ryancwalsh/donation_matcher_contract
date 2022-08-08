@@ -61,13 +61,19 @@ mod lib_tests {
         // TODO: Assert that this (escrow) contract now contains the correct amount of funds. Assert that the matchers' account balances have decreased appropriately.
         log_balance();
         let result = contract.get_commitments(&recipient);
-        assert_eq!(result, "These matchers are committed to match donations to alice up to a maximum of the following amounts:\nbob: 0.3 Ⓝ,\ncharlie: 0.1 Ⓝ,".to_string());
+        assert_eq!(
+            result,
+            "{\"bob\":\"0.3 Ⓝ\",\"charlie\":\"0.1 Ⓝ\"}".to_string()
+        );
         set_context(1, false, near_string_to_yocto(&"1".to_string()), 0);
         let _matcher1_rescind_result =
             contract.rescind_matching_funds(&recipient, "0.02 Ⓝ".to_string());
         // TODO: Assert funds received via transfer. Check state.
         let result_after_rescind = contract.get_commitments(&recipient);
-        assert_eq!(result_after_rescind, "These matchers are committed to match donations to alice up to a maximum of the following amounts:\nbob: 0.28 Ⓝ,\ncharlie: 0.1 Ⓝ,".to_string());
+        assert_eq!(
+            result_after_rescind,
+            "{\"bob\":\"0.28 Ⓝ\",\"charlie\":\"0.1 Ⓝ\"}".to_string()
+        );
         set_context(
             3, // Danny = 3
             false,
@@ -76,6 +82,6 @@ mod lib_tests {
         );
         contract.donate(&recipient);
         // let result_after_donation = contract.get_commitments(&recipient);
-        // assert_eq!(result_after_donation, "These matchers are committed to match donations to alice up to a maximum of the following amounts:\nbob: 0.18 Ⓝ,".to_string());
+        // assert_eq!(result_after_donation, "{bob: 0.18 Ⓝ,".to_string());
     }
 }

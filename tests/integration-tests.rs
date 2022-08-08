@@ -8,6 +8,7 @@ use donation_matcher_contract::{
     GAS_FOR_ACCOUNT_CALLBACK,
 };
 use near_sdk::{serde_json::json, Balance};
+use serde_json::{Map, Value};
 use test_log::test;
 use workspaces::{network::Sandbox, prelude::*, Account, Worker};
 
@@ -70,7 +71,7 @@ async fn test_offer_matching_funds_and_get_commitments_and_rescind_matching_fund
         .call(&worker, contract.id(), "offer_matching_funds")
         .args_json(json!({"recipient": &recipient.id()}))?
         .gas(GAS_FOR_ACCOUNT_CALLBACK.0)
-        .deposit(near_string_to_yocto(&"0.3".to_string()))
+        .deposit(near_string_to_yocto(&"0.3 Ⓝ".to_string()))
         .transact()
         .await?;
 
@@ -86,7 +87,7 @@ async fn test_offer_matching_funds_and_get_commitments_and_rescind_matching_fund
         .call(&worker, contract.id(), "offer_matching_funds")
         .args_json(json!({"recipient": &recipient.id()}))?
         .gas(GAS_FOR_ACCOUNT_CALLBACK.0)
-        .deposit(near_string_to_yocto(&"0.1".to_string()))
+        .deposit(near_string_to_yocto(&"0.1 Ⓝ".to_string()))
         .transact()
         .await?;
 
@@ -95,6 +96,25 @@ async fn test_offer_matching_funds_and_get_commitments_and_rescind_matching_fund
         "1 Ⓝ".to_string()
     ); // The recipient hasn't received any donation yet.
     assert_approx_considering_gas(&matcher2.view_account(&worker).await?.balance, "0.9 Ⓝ");
+
+    let commitments_result: String = contract
+        .call(&worker, "get_commitments")
+        .args_json(json!({"recipient": &recipient.id()}))?
+        .gas(GAS_FOR_ACCOUNT_CALLBACK.0)
+        .transact()
+        .await?
+        .json()
+        .unwrap();
+    let mut map = Map::new();
+    map.insert(
+        matcher1.id().to_string(),
+        Value::String("0.3 Ⓝ".to_string()),
+    );
+    map.insert(
+        matcher2.id().to_string(),
+        Value::String("0.1 Ⓝ".to_string()),
+    );
+    assert_eq!(commitments_result, Value::Object(map).to_string());
 
     // TODO: Write the rest of the test.
 

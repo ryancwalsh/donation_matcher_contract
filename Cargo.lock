@@ -707,6 +707,7 @@ dependencies = [
  "env_logger",
  "near-sdk",
  "near-units",
+ "serde_json",
  "test-log",
  "tokio",
  "uint 0.8.5",
