@@ -39,7 +39,7 @@ pub mod generic {
     }
 
     /// Convert $NEAR to yoctoNEAR.
-    pub fn near_string_to_yocto(near_string: FormattedNearString) -> u128 {
+    pub fn near_string_to_yocto(near_string: &FormattedNearString) -> u128 {
         let cleaned = near_string
             .replace(',', "")
             .replace('_', "")

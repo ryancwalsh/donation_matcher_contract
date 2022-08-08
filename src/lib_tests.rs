@@ -38,15 +38,15 @@ mod lib_tests {
         set_context(
             0, // 0 = Alice
             false,
-            near_string_to_yocto("1".to_string()),
+            near_string_to_yocto(&"1".to_string()),
             0,
         );
         //log_balance();
         set_context(
             1, // Bob = 1
             false,
-            near_string_to_yocto("1".to_string()),
-            near_string_to_yocto("0.3".to_string()),
+            near_string_to_yocto(&"1".to_string()),
+            near_string_to_yocto(&"0.3".to_string()),
         );
         log_balance();
         let _matcher1_offer_result = contract.offer_matching_funds(&recipient);
@@ -54,15 +54,15 @@ mod lib_tests {
         set_context(
             2, // Charlie = 2
             false,
-            near_string_to_yocto("1".to_string()),
-            near_string_to_yocto("0.1".to_string()),
+            near_string_to_yocto(&"1".to_string()),
+            near_string_to_yocto(&"0.1".to_string()),
         );
         let _matcher2_offer_result = contract.offer_matching_funds(&recipient);
         // TODO: Assert that this (escrow) contract now contains the correct amount of funds. Assert that the matchers' account balances have decreased appropriately.
         log_balance();
         let result = contract.get_commitments(&recipient);
         assert_eq!(result, "These matchers are committed to match donations to alice up to a maximum of the following amounts:\nbob: 0.3 Ⓝ,\ncharlie: 0.1 Ⓝ,".to_string());
-        set_context(1, false, near_string_to_yocto("1".to_string()), 0);
+        set_context(1, false, near_string_to_yocto(&"1".to_string()), 0);
         let _matcher1_rescind_result =
             contract.rescind_matching_funds(&recipient, "0.02 Ⓝ".to_string());
         // TODO: Assert funds received via transfer. Check state.
@@ -71,8 +71,8 @@ mod lib_tests {
         set_context(
             3, // Danny = 3
             false,
-            near_string_to_yocto("1".to_string()),
-            near_string_to_yocto("0.1".to_string()),
+            near_string_to_yocto(&"1".to_string()),
+            near_string_to_yocto(&"0.1".to_string()),
         );
         contract.donate(&recipient);
         // let result_after_donation = contract.get_commitments(&recipient);

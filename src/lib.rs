@@ -226,7 +226,7 @@ impl Contract {
         let amount_already_committed =
             self.get_expected_commitment(recipient, &matchers_for_this_recipient, &matcher);
         let requested_withdrawal_amount_yocto: Amount =
-            near_string_to_yocto(requested_withdrawal_amount);
+            near_string_to_yocto(&requested_withdrawal_amount);
         let result;
         let amount_to_decrease =
             cmp::min(requested_withdrawal_amount_yocto, amount_already_committed);

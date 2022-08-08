@@ -7,7 +7,7 @@ use donation_matcher_contract::{
     generic::{near_string_to_yocto, yocto_to_near_string},
     GAS_FOR_ACCOUNT_CALLBACK,
 };
-use near_sdk::serde_json::json;
+use near_sdk::{serde_json::json, Balance};
 use test_log::test;
 use workspaces::{network::Sandbox, prelude::*, Account, Worker};
 
@@ -19,12 +19,27 @@ async fn create_subaccount(
 ) -> Result<Account, Error> {
     let subaccount = parent_account
         .create_subaccount(&worker, name)
-        .initial_balance(near_string_to_yocto(initial_balance.to_string()))
+        .initial_balance(near_string_to_yocto(&initial_balance.to_string()))
         .transact()
         .await?
         .into_result()?;
 
     Ok(subaccount)
+}
+
+fn assert_approx_considering_gas(amount1: &Balance, amount2str: &str) {
+    const TOLERANCE: &str = &"0.0059 Ⓝ";
+    let tolerance: Balance = near_string_to_yocto(&TOLERANCE.to_string());
+    let amount2 = &near_string_to_yocto(&amount2str.to_string());
+    assert!(amount1 <= amount2);
+    near_sdk::log!("amount1 {} <= amount2 {}", amount1, amount2);
+    near_sdk::log!("tolerance = {}", tolerance);
+    assert!(
+        amount1 >= &(*amount2 - &tolerance),
+        "Check whether gas used <= the tolerance specified in this assertion. {}. Formatted: {}",
+        amount2 - amount1,
+        yocto_to_near_string(&(amount2 - amount1))
+    );
 }
 
 #[test(tokio::test)]
@@ -51,12 +66,11 @@ async fn test_offer_matching_funds_and_get_commitments_and_rescind_matching_fund
 
     let matcher1 = create_subaccount(&worker, &parent_account, "matcher1", "1 Ⓝ").await?;
 
-    // TODO: How to set matcher1 as the caller.
-    let _matcher1_offer_result = contract
-        .call(&worker, "offer_matching_funds")
+    let _matcher1_offer_result = matcher1
+        .call(&worker, contract.id(), "offer_matching_funds")
         .args_json(json!({"recipient": &recipient.id()}))?
         .gas(GAS_FOR_ACCOUNT_CALLBACK.0)
-        .deposit(near_string_to_yocto("0.3".to_string()))
+        .deposit(near_string_to_yocto(&"0.3".to_string()))
         .transact()
         .await?;
 
@@ -64,10 +78,7 @@ async fn test_offer_matching_funds_and_get_commitments_and_rescind_matching_fund
         yocto_to_near_string(&recipient.view_account(&worker).await?.balance),
         "1 Ⓝ".to_string()
     ); // The recipient hasn't received any donation yet.
-    assert_eq!(
-        yocto_to_near_string(&matcher1.view_account(&worker).await?.balance),
-        "0.7 Ⓝ".to_string()
-    );
+    assert_approx_considering_gas(&matcher1.view_account(&worker).await?.balance, "0.7 Ⓝ");
 
     // TODO: Write the rest of the test.
 
