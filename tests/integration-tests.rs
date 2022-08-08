@@ -57,8 +57,9 @@ async fn test_offer_matching_funds_and_get_commitments_and_rescind_matching_fund
         .await?;
 
     let starting_balance_for_each_acct = "1 Ⓝ".to_string();
-    let matcher1_offer1 = "0.3 Ⓝ".to_string();
-    let matcher2_offer1 = "0.1 Ⓝ".to_string();
+    let matcher1_offer = "0.3 Ⓝ".to_string();
+    let matcher2_offer = "0.1 Ⓝ".to_string();
+    let matcher1_rescind = "0.02 Ⓝ".to_string();
 
     let recipient = create_subaccount(
         &worker,
@@ -85,7 +86,7 @@ async fn test_offer_matching_funds_and_get_commitments_and_rescind_matching_fund
         .call(&worker, contract.id(), "offer_matching_funds")
         .args_json(json!({"recipient": &recipient.id()}))?
         .gas(GAS_FOR_ACCOUNT_CALLBACK.0)
-        .deposit(near_string_to_yocto(&matcher1_offer1.to_string()))
+        .deposit(near_string_to_yocto(&matcher1_offer.to_string()))
         .transact()
         .await?;
 
@@ -93,11 +94,11 @@ async fn test_offer_matching_funds_and_get_commitments_and_rescind_matching_fund
         yocto_to_near_string(&recipient.view_account(&worker).await?.balance),
         starting_balance_for_each_acct
     ); // The recipient hasn't received any donation yet.
-    let matcher1_bal_after_offer1 = &near_string_to_yocto(&starting_balance_for_each_acct)
-        - &near_string_to_yocto(&matcher1_offer1.to_string());
+    let matcher1_bal_after_offer = &near_string_to_yocto(&starting_balance_for_each_acct)
+        - &near_string_to_yocto(&matcher1_offer.to_string());
     assert_approx_considering_gas(
         &matcher1.view_account(&worker).await?.balance,
-        &matcher1_bal_after_offer1,
+        &matcher1_bal_after_offer,
     );
 
     let matcher2 = create_subaccount(
@@ -112,7 +113,7 @@ async fn test_offer_matching_funds_and_get_commitments_and_rescind_matching_fund
         .call(&worker, contract.id(), "offer_matching_funds")
         .args_json(json!({"recipient": &recipient.id()}))?
         .gas(GAS_FOR_ACCOUNT_CALLBACK.0)
-        .deposit(near_string_to_yocto(&matcher2_offer1.to_string()))
+        .deposit(near_string_to_yocto(&matcher2_offer.to_string()))
         .transact()
         .await?;
 
@@ -120,13 +121,14 @@ async fn test_offer_matching_funds_and_get_commitments_and_rescind_matching_fund
         yocto_to_near_string(&recipient.view_account(&worker).await?.balance),
         starting_balance_for_each_acct
     ); // The recipient hasn't received any donation yet.
-    let matcher2_bal_after_offer1 = &near_string_to_yocto(&starting_balance_for_each_acct)
-        - &near_string_to_yocto(&matcher2_offer1.to_string());
+    let matcher2_bal_after_offer = &near_string_to_yocto(&starting_balance_for_each_acct)
+        - &near_string_to_yocto(&matcher2_offer.to_string());
     assert_approx_considering_gas(
         &matcher2.view_account(&worker).await?.balance,
-        &matcher2_bal_after_offer1,
+        &matcher2_bal_after_offer,
     );
 
+    //ONEDAY: Move to assert_expected_commitments helper function and reduce duplication.
     let commitments_result: String = contract
         .call(&worker, "get_commitments")
         .args_json(json!({"recipient": &recipient.id()}))?
@@ -139,8 +141,36 @@ async fn test_offer_matching_funds_and_get_commitments_and_rescind_matching_fund
     assert_eq!(
         commitments_result,
         json!({
-            matcher1.id().to_string(): matcher1_offer1,
-            matcher2.id().to_string(): matcher2_offer1
+            matcher1.id().to_string(): matcher1_offer,
+            matcher2.id().to_string(): matcher2_offer
+        })
+        .to_string()
+    );
+
+    let _matcher1_rescind_result = matcher1
+        .call(&worker, contract.id(), "rescind_matching_funds")
+        .args_json(
+            json!({"recipient": &recipient.id(), "requested_withdrawal_amount": matcher1_rescind}),
+        )?
+        .gas(GAS_FOR_ACCOUNT_CALLBACK.0 * 3) // ONEDAY: Figure out how much gas to put here.
+        .transact()
+        .await?;
+    let matcher1_offer_after_rescind =
+        &near_string_to_yocto(&matcher1_offer) - &near_string_to_yocto(&matcher1_rescind);
+    let commitments_result2: String = contract
+        .call(&worker, "get_commitments")
+        .args_json(json!({"recipient": &recipient.id()}))?
+        .gas(GAS_FOR_ACCOUNT_CALLBACK.0)
+        .transact()
+        .await?
+        .json()
+        .unwrap();
+
+    assert_eq!(
+        commitments_result2,
+        json!({
+            matcher1.id().to_string(): yocto_to_near_string(&matcher1_offer_after_rescind),
+            matcher2.id().to_string(): matcher2_offer
         })
         .to_string()
     );
