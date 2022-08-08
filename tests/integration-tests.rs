@@ -207,7 +207,7 @@ async fn test_offer_matching_funds_and_get_commitments_and_rescind_matching_fund
         starting_balance_for_each_acct.as_str(),
     )
     .await?;
-    unimplemented!();
+
     let _donate_result = donor
         .call(&worker, contract.id(), "donate")
         .args_json(json!({"recipient": &recipient.id()}))?

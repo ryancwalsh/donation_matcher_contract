@@ -81,7 +81,7 @@ impl Contract {
                 matcher, recipient
             )
         });
-        near_sdk::log!(
+        log!(
             "get_expected_commitment. matcher = {}, existing_commitment = {}",
             matcher,
             near::to_human(existing_commitment)
@@ -107,17 +107,17 @@ impl Contract {
 
         // If the matcher has already donated, increment their donation.
         let existing_commitment = matchers_for_this_recipient.get(&matcher).unwrap_or(0);
-        near_sdk::log!(
+        log!(
             "existing_commitment {}",
             yocto_to_near_string(&existing_commitment)
         );
         let updated_commitment = donation_amount + existing_commitment;
-        near_sdk::log!(
+        log!(
             "updated_commitment {}",
             yocto_to_near_string(&updated_commitment)
         );
         matchers_for_this_recipient.insert(&matcher, &updated_commitment);
-        near_sdk::log!("inserted {}", &matcher);
+        log!("inserted {}", &matcher);
 
         self.recipients
             .insert(&recipient, &matchers_for_this_recipient);
@@ -136,13 +136,13 @@ impl Contract {
         let mut map = Map::new();
         let matchers_for_this_recipient: MatcherAmountMap =
             self.get_expected_matchers_for_this_recipient(&recipient);
-        near_sdk::log!(
+        log!(
             "______ get_commitments matchers_for_this_recipient.len() {}",
             matchers_for_this_recipient.len()
         ); // TODO: Why does this show "2" when running test_offer_matching_funds_and_get_commitments_and_rescind_matching_funds_and_donate even though line 296 (of this commit) says "1"?
         let matchers = matchers_for_this_recipient.keys_as_vector();
         for matcher in matchers.iter() {
-            //near_sdk::log!("get_commitments. matcher = {}", &matcher);
+            //log!("get_commitments. matcher = {}", &matcher);
             let existing_commitment =
                 self.get_expected_commitment(recipient, &matchers_for_this_recipient, &matcher);
             map.insert(
@@ -181,7 +181,7 @@ impl Contract {
         matcher: &AccountId,
         amount: Amount,
     ) -> MatcherAmountMap {
-        near_sdk::log!(
+        log!(
             "set_matcher_amount(recipient: {}, matcher: {}, amount: {})",
             &recipient,
             &matcher,
@@ -194,7 +194,7 @@ impl Contract {
             matchers_for_this_recipient.remove(matcher);
         } else {
             matchers_for_this_recipient.insert(matcher, &amount);
-            near_sdk::log!("inserted {}", &matcher);
+            log!("inserted {}", &matcher);
         }
 
         matchers_for_this_recipient
@@ -251,7 +251,7 @@ impl Contract {
                     .with_static_gas(GAS_FOR_ACCOUNT_CALLBACK)
                     .on_rescind_matching_funds(recipient, matcher, amount_already_committed),
             );
-        near_sdk::log!(result);
+        log!(result);
         result
     }
 
@@ -277,7 +277,7 @@ impl Contract {
                 self.get_expected_commitment(recipient, &matchers_for_this_recipient, &matcher);
             let matched_amount: u128 = cmp::min(*donation_amount, existing_commitment);
             let remaining_commitment: u128 = existing_commitment - matched_amount;
-            near_sdk::log!(
+            log!(
                 "{} will send a matching donation of {} to {}. Remaining commitment: {}.",
                 &matcher,
                 yocto_to_near_string(&matched_amount),
@@ -285,22 +285,22 @@ impl Contract {
                 yocto_to_near_string(&remaining_commitment)
             );
             if &remaining_commitment == &0 {
-                near_sdk::log!("Zero remains. Removing {}", &matcher);
+                log!("Zero remains. Removing {}", &matcher);
                 matchers_for_this_recipient.remove(&matcher);
-                near_sdk::log!("len = {}", matchers_for_this_recipient.len()); // TODO See line 138 of this commit.
+                log!("len = {}", matchers_for_this_recipient.len()); // TODO See line 138 of this commit.
             } else {
-                near_sdk::log!(
+                log!(
                     "Overwriting {} with {}",
                     &matcher,
                     yocto_to_near_string(&remaining_commitment)
                 );
                 matchers_for_this_recipient.insert(&matcher, &remaining_commitment);
-                near_sdk::log!("inserted {}", &matcher);
+                log!("inserted {}", &matcher);
             }
             original_commitments.insert(matcher, existing_commitment);
             sum_of_donations_to_send += matched_amount;
         }
-        near_sdk::log!(
+        log!(
             "sum_of_donations_to_send={}",
             yocto_to_near_string(&sum_of_donations_to_send),
         );
@@ -328,7 +328,7 @@ impl Contract {
         let gas_to_be_burned_during_transfer_from_escrow = GAS_FOR_ACCOUNT_CALLBACK;
         let remaining_gas =
             prepaid_gas - gas_already_burned - gas_to_be_burned_during_transfer_from_escrow;
-        near_sdk::log!(
+        log!(
             "prepaid_gas={:?}, gas_already_burned={:?}, gas_to_be_burned_during_transfer_from_escrow={:?}, remaining_gas={:?}",
             prepaid_gas,
             gas_already_burned,
@@ -359,7 +359,7 @@ impl Contract {
         for key in to_remove.iter() {
             // https://stackoverflow.com/a/45724774/470749
             matchers_for_this_recipient.remove(key); // If not for this loop, the contract state would be messed up, and we would later get "The collection is an inconsistent state" errors.
-            near_sdk::log!("Removed {} from {}", &key, &recipient);
+            log!("Removed {} from {}", &key, &recipient);
         }
         self.recipients.remove(&recipient); // See comment above about why removing each inner map is also necessary.
     }
