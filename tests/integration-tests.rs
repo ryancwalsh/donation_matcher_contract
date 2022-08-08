@@ -9,7 +9,7 @@ use donation_matcher_contract::{
 };
 use near_sdk::{log, serde_json::json, Balance};
 use test_log::test;
-use workspaces::{network::Sandbox, prelude::*, Account, Worker};
+use workspaces::{network::Sandbox, prelude::*, Account, Contract, Worker};
 
 async fn create_subaccount(
     worker: &Worker<Sandbox>,
@@ -44,6 +44,25 @@ fn assert_approx_considering_gas(amount1: &Balance, amount2: &Balance) {
         amount2 - amount1,
         yocto_to_near_string(&(amount2 - amount1))
     );
+}
+
+async fn assert_expected_commitments(
+    contract: &Contract,
+    worker: &Worker<Sandbox>,
+    recipient: &Account,
+    expected_result: near_sdk::serde_json::Value,
+) -> anyhow::Result<()> {
+    let commitments_result: String = contract
+        .call(&worker, "get_commitments")
+        .args_json(json!({"recipient": &recipient.id()}))?
+        .gas(GAS_FOR_ACCOUNT_CALLBACK.0)
+        .transact()
+        .await?
+        .json()
+        .unwrap();
+
+    assert_eq!(commitments_result, expected_result.to_string());
+    Ok(())
 }
 
 #[test(tokio::test)]
@@ -138,25 +157,16 @@ async fn test_offer_matching_funds_and_get_commitments_and_rescind_matching_fund
         &matcher2.view_account(&worker).await?.balance,
         &matcher2_bal_after_offer,
     );
-
-    //ONEDAY: Move to assert_expected_commitments helper function and reduce duplication.
-    let commitments_result: String = contract
-        .call(&worker, "get_commitments")
-        .args_json(json!({"recipient": &recipient.id()}))?
-        .gas(GAS_FOR_ACCOUNT_CALLBACK.0)
-        .transact()
-        .await?
-        .json()
-        .unwrap();
-
-    assert_eq!(
-        commitments_result,
+    assert_expected_commitments(
+        &contract,
+        &worker,
+        &recipient,
         json!({
             matcher1.id().to_string(): matcher1_offer,
             matcher2.id().to_string(): matcher2_offer
-        })
-        .to_string()
-    );
+        }),
+    )
+    .await?;
 
     let _matcher1_rescind_result = matcher1
         .call(&worker, contract.id(), "rescind_matching_funds")
@@ -174,23 +184,17 @@ async fn test_offer_matching_funds_and_get_commitments_and_rescind_matching_fund
     );
     let matcher1_offer_after_rescind =
         &near_string_to_yocto(&matcher1_offer) - &near_string_to_yocto(&matcher1_rescind);
-    let commitments_result2: String = contract
-        .call(&worker, "get_commitments")
-        .args_json(json!({"recipient": &recipient.id()}))?
-        .gas(GAS_FOR_ACCOUNT_CALLBACK.0)
-        .transact()
-        .await?
-        .json()
-        .unwrap();
 
-    assert_eq!(
-        commitments_result2,
+    assert_expected_commitments(
+        &contract,
+        &worker,
+        &recipient,
         json!({
-            matcher1.id().to_string(): yocto_to_near_string(&matcher1_offer_after_rescind),
+              matcher1.id().to_string(): yocto_to_near_string(&matcher1_offer_after_rescind),
             matcher2.id().to_string(): &matcher2_offer
-        })
-        .to_string()
-    );
+        }),
+    )
+    .await?;
 
     log!(
         "parent_account balance = {}",
@@ -203,6 +207,7 @@ async fn test_offer_matching_funds_and_get_commitments_and_rescind_matching_fund
         starting_balance_for_each_acct.as_str(),
     )
     .await?;
+    unimplemented!();
     let _donate_result = donor
         .call(&worker, contract.id(), "donate")
         .args_json(json!({"recipient": &recipient.id()}))?
@@ -234,24 +239,18 @@ async fn test_offer_matching_funds_and_get_commitments_and_rescind_matching_fund
         &matcher2_bal_after_donation,
     );
 
-    let commitments_result3: String = contract
-        .call(&worker, "get_commitments")
-        .args_json(json!({"recipient": &recipient.id()}))?
-        .gas(GAS_FOR_ACCOUNT_CALLBACK.0)
-        .transact()
-        .await?
-        .json()
-        .unwrap();
-
     let matcher1_offer_after_donation =
         &matcher1_offer_after_rescind - &near_string_to_yocto(&donation);
-    assert_eq!(
-        commitments_result3,
+
+    assert_expected_commitments(
+        &contract,
+        &worker,
+        &recipient,
         json!({
-            matcher1.id().to_string(): yocto_to_near_string(&matcher1_offer_after_donation),
-        })
-        .to_string()
-    );
+        matcher1.id().to_string(): yocto_to_near_string(&matcher1_offer_after_donation),
+            }),
+    )
+    .await?;
     // TODO: Write the rest of the test.
 
     Ok(())
