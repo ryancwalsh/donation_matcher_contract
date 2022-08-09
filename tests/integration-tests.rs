@@ -23,7 +23,7 @@ async fn create_subaccount(
         .transact()
         .await?
         .into_result()?;
-
+    log!("subaccount {}", subaccount.id());
     Ok(subaccount)
 }
 
@@ -73,6 +73,7 @@ async fn test_offer_matching_funds_and_get_commitments_and_rescind_matching_fund
         .dev_deploy(&include_bytes!("../target/res/donation_matcher_contract.wasm").to_vec())
         .await?;
     let parent_account = worker.dev_create_account().await?;
+    log!("parent_account {}", parent_account.id());
     assert_approx_considering_gas(
         &parent_account.view_account(&worker).await?.balance,
         &near_string_to_yocto(&"100 Ⓝ".to_string()),
