@@ -139,7 +139,7 @@ impl Contract {
         log!(
             "______ get_commitments matchers_for_this_recipient.len() {}",
             matchers_for_this_recipient.len()
-        ); // TODO: Why does this show "2" when running test_offer_matching_funds_and_get_commitments_and_rescind_matching_funds_and_donate even though line 296 (of this commit) says "1"?
+        );
         let matchers = matchers_for_this_recipient.keys_as_vector();
         for matcher in matchers.iter() {
             //log!("get_commitments. matcher = {}", &matcher);
@@ -197,6 +197,7 @@ impl Contract {
             matchers_for_this_recipient.insert(matcher, &amount);
             log!("inserted {}", &matcher);
         }
+        log!("len = {}", matchers_for_this_recipient.len());
 
         matchers_for_this_recipient
     }
@@ -211,6 +212,7 @@ impl Contract {
         if !did_promise_succeed() {
             // If transfer failed, change the state back to what it was:
             self.set_matcher_amount(recipient, &matcher, original_amount);
+            // TODO remove the inner UnorderedMap from the outer recipients LookupMap if len of UnorderedMap is 0.
         }
     }
 
@@ -247,6 +249,15 @@ impl Contract {
         );
         log!(result);
         self.set_matcher_amount(recipient, &matcher, new_amount);
+        let num = matchers_for_this_recipient.len();
+        log!(
+            "TEMP. This should be 0 in test_repeated_offers_and_rescinds. num = {}",
+            num
+        );
+        if num == 0 {
+            log!("REMOVING from recipients");
+            self.recipients.remove(&recipient);
+        }
         self.transfer_from_escrow(&matcher, amount_to_decrease) // Funds go from escrow back to the matcher.
             .then(
                 Self::ext(env::current_account_id()) // escrow contract name
@@ -263,7 +274,6 @@ impl Contract {
         donation_amount: &Amount,
         recipient: &AccountId,
     ) -> (Amount, InMemoryMatcherAmountMap) {
-        // TODO: Fix "The collection is an inconsistent state"
         let mut sum_of_donations_to_send = *donation_amount;
         let mut matchers_for_this_recipient: MatcherAmountMap =
             self.get_expected_matchers_for_this_recipient(&recipient);
@@ -288,7 +298,7 @@ impl Contract {
             if &remaining_commitment == &0 {
                 log!("Zero remains. Removing {}", &matcher);
                 matchers_for_this_recipient.remove(&matcher);
-                log!("len = {}", matchers_for_this_recipient.len()); // TODO See line 138 of this commit.
+                log!("len = {}", matchers_for_this_recipient.len());
             } else {
                 log!(
                     "Overwriting {} with {}",
