@@ -82,4 +82,50 @@ mod lib_tests {
             near_string_to_yocto(&"0.1".to_string()),
         );
     }
+
+    #[test]
+    fn test_repeated_offers_and_rescinds() {
+        let mut contract = Contract::new();
+        let starting_balance = near_string_to_yocto(&"1".to_string());
+        let recipient = accounts(0); // 0 = Alice
+        set_context(
+            0, // 0 = Alice
+            false,
+            starting_balance,
+            0,
+        );
+        //log_balance();
+        set_context(
+            1, // Bob = 1
+            false,
+            starting_balance,
+            near_string_to_yocto(&"0.1".to_string()),
+        );
+        log_balance();
+        let _matcher1_offer_result = contract.offer_matching_funds(&recipient);
+        log_balance();
+        set_context(
+            1, // Bob = 1
+            false,
+            starting_balance,
+            near_string_to_yocto(&"0.1".to_string()),
+        );
+        let _matcher2_offer_result = contract.offer_matching_funds(&recipient);
+        // Unit tests cannot assert that this (escrow) contract now contains the correct amount of funds. The integration tests should do that and also assert that the matchers' account balances have decreased appropriately.
+        log_balance();
+        let result = contract.get_commitments(&recipient);
+        assert_eq!(result, "{\"bob\":\"0.2 Ⓝ\"}".to_string());
+        set_context(1, false, starting_balance, 0);
+        let _matcher1_rescind_result1 =
+            contract.rescind_matching_funds(&recipient, "0.02 Ⓝ".to_string());
+        // Unit tests cannot assert funds received via transfer (check state). The integration tests should.
+        let result_after_rescind1 = contract.get_commitments(&recipient);
+        assert_eq!(result_after_rescind1, "{\"bob\":\"0.18 Ⓝ\"}".to_string());
+        // TODO: Here is the problem. "The collection is an inconsistent state. Did previous smart contract execution terminate unexpectedly?"
+        let _matcher1_rescind_result2 =
+            contract.rescind_matching_funds(&recipient, "99 Ⓝ".to_string());
+        // Unit tests cannot assert funds received via transfer (check state). The integration tests should.
+        let result_after_rescind2 = contract.get_commitments(&recipient);
+        assert_eq!(result_after_rescind2, "{\"bob\":\"0 Ⓝ\"}".to_string());
+    }
 }

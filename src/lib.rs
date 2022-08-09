@@ -191,6 +191,7 @@ impl Contract {
         let mut matchers_for_this_recipient =
             self.get_expected_matchers_for_this_recipient(recipient);
         if amount == 0 {
+            log!("set_matcher_amount removing matcher {}", &matcher);
             matchers_for_this_recipient.remove(matcher);
         } else {
             matchers_for_this_recipient.insert(matcher, &amount);
@@ -244,6 +245,7 @@ impl Contract {
             yocto_to_near_string(&amount_to_decrease),
             end_of_msg
         );
+        log!(result);
         self.set_matcher_amount(recipient, &matcher, new_amount);
         self.transfer_from_escrow(&matcher, amount_to_decrease) // Funds go from escrow back to the matcher.
             .then(
@@ -251,7 +253,6 @@ impl Contract {
                     .with_static_gas(GAS_FOR_ACCOUNT_CALLBACK)
                     .on_rescind_matching_funds(recipient, matcher, amount_already_committed),
             );
-        log!(result);
         result
     }
 
