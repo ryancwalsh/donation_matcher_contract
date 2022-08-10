@@ -90,7 +90,7 @@ impl Contract {
 
     #[payable] // Public - People can attach money
     pub fn offer_matching_funds(&mut self, recipient: &AccountId) -> String {
-        let storage_cost: Amount = near_units::near::parse("1").unwrap(); // ONEDAY: Document how this value was decided.
+        let storage_cost: Amount = near_units::near::parse("0.001").unwrap(); // ONEDAY: Document how this value was decided.
         let donation_amount: Amount = env::attached_deposit();
         assert!(
             donation_amount > storage_cost,
