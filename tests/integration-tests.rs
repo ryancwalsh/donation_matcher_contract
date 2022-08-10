@@ -217,11 +217,11 @@ async fn test_offer_matching_funds_and_get_commitments_and_rescind_matching_fund
         .transact()
         .await?;
 
-    let recipient_donor_bal =
+    let donor_expected_bal =
         near_string_to_yocto(&starting_balance_for_each_acct) - &near_string_to_yocto(&donation);
     assert_approx_considering_gas(
         &donor.view_account(&worker).await?.balance,
-        &recipient_donor_bal,
+        &donor_expected_bal,
     );
     let recipient_expected_bal = near_string_to_yocto(&starting_balance_for_each_acct)
         + (3 * &near_string_to_yocto(&donation)); // 3x because 1 donor + 2 matchers that were able to fully match this donation amount.
