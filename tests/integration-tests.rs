@@ -2,6 +2,8 @@
 
 #![recursion_limit = "256"]
 
+use std::env;
+
 use anyhow::Error;
 use donation_matcher_contract::{
     generic::{near_string_to_yocto, yocto_to_near_string},
@@ -9,6 +11,8 @@ use donation_matcher_contract::{
 };
 use near_sdk::{log, serde_json::json, Balance};
 use test_log::test;
+use tracing_subscriber::filter::LevelFilter;
+use tracing_subscriber::EnvFilter;
 use workspaces::{network::Sandbox, prelude::*, Account, Contract, Worker};
 
 async fn create_subaccount(
@@ -68,6 +72,15 @@ async fn assert_expected_commitments(
 #[test(tokio::test)]
 async fn test_offer_matching_funds_and_get_commitments_and_rescind_matching_funds_and_donate(
 ) -> anyhow::Result<()> {
+    // Parse log filters from RUST_LOG or fallback to INFO if empty
+    // let filter = if env::var(EnvFilter::DEFAULT_ENV).is_ok() {
+    //     EnvFilter::from_default_env()
+    // } else {
+    //     EnvFilter::default().add_directive(LevelFilter::INFO.into())
+    // };
+    // tracing_subscriber::fmt().with_env_filter(filter).init();
+    tracing_subscriber::fmt::init();
+
     let worker = workspaces::sandbox().await?;
     let contract = worker
         .dev_deploy(&include_bytes!("../target/res/donation_matcher_contract.wasm").to_vec())

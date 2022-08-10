@@ -18,6 +18,8 @@ workspaces = "0.4.0"
 near-sdk = "4.0.0"
 near-units = "0.2.0"
 serde_json = "1.0.83"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3.5", features = ["env-filter"] }
 uint = { version = "0.8.3", default-features = false }
 witgen = "0.14.0"
 
