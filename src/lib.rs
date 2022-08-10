@@ -27,7 +27,7 @@ type InMemoryMatcherAmountMap = HashMap<MatcherAccountId, Amount>;
 type RecipientAccountId = AccountId;
 type MatcherAmountPerRecipient = LookupMap<RecipientAccountId, MatcherAmountMap>;
 
-pub const GAS_FOR_ACCOUNT_CALLBACK: Gas = Gas(100_000_000_000_000); // gas for cross-contract calls, ~5 Tgas (teragas = 1e12) per "hop"
+pub const GAS_FOR_ACCOUNT_CALLBACK: Gas = Gas(100_000_000_000_000); // gas for cross-contract calls, ~5 Tgas (teragas = 1e12) per "hop" // TODO: Document how to choose this number.
 
 #[derive(BorshSerialize, BorshStorageKey)]
 enum StorageKey {
@@ -198,7 +198,8 @@ impl Contract {
             log!("inserted {}", &matcher);
         }
         log!("len = {}", matchers_for_this_recipient.len());
-
+        self.recipients
+            .insert(&recipient, &matchers_for_this_recipient);
         matchers_for_this_recipient
     }
 
@@ -212,7 +213,6 @@ impl Contract {
         if !did_promise_succeed() {
             // If transfer failed, change the state back to what it was:
             self.set_matcher_amount(recipient, &matcher, original_amount);
-            // TODO remove the inner UnorderedMap from the outer recipients LookupMap if len of UnorderedMap is 0.
         }
     }
 
@@ -249,15 +249,6 @@ impl Contract {
         );
         log!(result);
         self.set_matcher_amount(recipient, &matcher, new_amount);
-        let num = matchers_for_this_recipient.len();
-        log!(
-            "TEMP. This should be 0 in test_repeated_offers_and_rescinds. num = {}",
-            num
-        );
-        if num == 0 {
-            log!("REMOVING from recipients");
-            self.recipients.remove(&recipient);
-        }
         self.transfer_from_escrow(&matcher, amount_to_decrease) // Funds go from escrow back to the matcher.
             .then(
                 Self::ext(env::current_account_id()) // escrow contract name
@@ -315,6 +306,8 @@ impl Contract {
             "sum_of_donations_to_send={}",
             yocto_to_near_string(&sum_of_donations_to_send),
         );
+        self.recipients
+            .insert(&recipient, &matchers_for_this_recipient);
         (sum_of_donations_to_send, original_commitments)
     }
 
