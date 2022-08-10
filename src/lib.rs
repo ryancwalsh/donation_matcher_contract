@@ -27,8 +27,7 @@ type InMemoryMatcherAmountMap = HashMap<MatcherAccountId, Amount>;
 type RecipientAccountId = AccountId;
 type MatcherAmountPerRecipient = LookupMap<RecipientAccountId, MatcherAmountMap>;
 
-pub const STORAGE_COST: Amount = 1_000_000_000_000_000_000_000; // ONEDAY: Write this in a more human-readable way, and document how this value was decided.
-pub const GAS_FOR_ACCOUNT_CALLBACK: Gas = Gas(20_000_000_000_000); // gas for cross-contract calls, ~5 Tgas (teragas = 1e12) per "hop"
+pub const GAS_FOR_ACCOUNT_CALLBACK: Gas = Gas(100_000_000_000_000); // gas for cross-contract calls, ~5 Tgas (teragas = 1e12) per "hop"
 
 #[derive(BorshSerialize, BorshStorageKey)]
 enum StorageKey {
@@ -91,11 +90,12 @@ impl Contract {
 
     #[payable] // Public - People can attach money
     pub fn offer_matching_funds(&mut self, recipient: &AccountId) -> String {
+        let storage_cost: Amount = near_units::near::parse("1").unwrap(); // ONEDAY: Document how this value was decided.
         let donation_amount: Amount = env::attached_deposit();
         assert!(
-            donation_amount > STORAGE_COST,
+            donation_amount > storage_cost,
             "Attach at least {} yoctoNEAR",
-            STORAGE_COST
+            storage_cost
         );
         let matcher = env::signer_account_id(); // https://docs.near.org/develop/contracts/environment/
 
@@ -137,7 +137,7 @@ impl Contract {
         let matchers_for_this_recipient: MatcherAmountMap =
             self.get_expected_matchers_for_this_recipient(&recipient);
         log!(
-            "______ get_commitments matchers_for_this_recipient.len() {}",
+            "get_commitments matchers_for_this_recipient.len() {}",
             matchers_for_this_recipient.len()
         );
         let matchers = matchers_for_this_recipient.keys_as_vector();

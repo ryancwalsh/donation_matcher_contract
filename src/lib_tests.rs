@@ -25,7 +25,7 @@ mod lib_tests {
 
     fn log_balance() {
         log!(
-            "⬜⬜⬜⬜ account_balance: {:?}: {:?}",
+            "account_balance: {:?}: {:?}",
             env::current_account_id(),
             yocto_to_near_string(&env::account_balance())
         );
@@ -126,6 +126,6 @@ mod lib_tests {
             contract.rescind_matching_funds(&recipient, "99 Ⓝ".to_string());
         // Unit tests cannot assert funds received via transfer (check state). The integration tests should.
         let result_after_rescind2 = contract.get_commitments(&recipient);
-        assert_eq!(result_after_rescind2, "{\"bob\":\"0 Ⓝ\"}".to_string());
+        assert_eq!(result_after_rescind2, "{}".to_string());
     }
 }
