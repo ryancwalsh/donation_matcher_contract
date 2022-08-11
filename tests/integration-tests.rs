@@ -2,6 +2,8 @@
 
 #![recursion_limit = "256"]
 
+use std::cmp;
+
 use anyhow::Error;
 use donation_matcher_contract::generic::{near_string_to_yocto, yocto_to_near_string};
 use near_sdk::{log, serde_json::json, Balance};
@@ -33,8 +35,12 @@ fn assert_approx_considering_gas(amount1: &Balance, amount2: &Balance) {
         yocto_to_near_string(amount1),
         yocto_to_near_string(amount2)
     );
-    log!("amount1 {} <= amount2 {}", amount1, amount2);
-    log!("tolerance = {}", tolerance);
+    log!(
+        "amount1 {} <= amount2 {}",
+        yocto_to_near_string(amount1),
+        yocto_to_near_string(amount2)
+    );
+    log!("tolerance = {}", yocto_to_near_string(&tolerance));
     assert!(
         amount1 >= &(*amount2 - &tolerance),
         "Check whether gas used <= the tolerance specified in this assertion. Diff = {} ({})",
@@ -87,7 +93,7 @@ async fn test_offer_matching_funds_and_get_commitments_and_rescind_matching_fund
     let matcher1_offer = "0.3 Ⓝ".to_string();
     let matcher2_offer = "0.1 Ⓝ".to_string();
     let matcher1_rescind1 = "0.02 Ⓝ".to_string();
-    let matcher1_rescind2 = "999 Ⓝ".to_string();
+    let matcher1_rescind2_greedy = "999 Ⓝ".to_string();
     let donation = "0.1 Ⓝ".to_string();
 
     let recipient = create_subaccount(
@@ -261,20 +267,27 @@ async fn test_offer_matching_funds_and_get_commitments_and_rescind_matching_fund
             }),
     )
     .await?;
-    let matcher1_bal_after_rescind2 =
-        &matcher1_bal_after_offer + &near_string_to_yocto(&matcher1_rescind2);
+    let matcher1_rescind2_actual = cmp::min(
+        near_string_to_yocto(&matcher1_rescind2_greedy),
+        matcher1_offer_after_donation,
+    );
+    let matcher1_bal_after_rescind2 = &matcher1_bal_after_offer + &matcher1_rescind2_actual;
+    log!(
+        "matcher1_bal_after_offer {} + matcher1_rescind2_actual {} = matcher1_bal_after_rescind2 {}",
+        yocto_to_near_string(&matcher1_bal_after_offer),
+        yocto_to_near_string(&matcher1_rescind2_actual),
+        yocto_to_near_string(&matcher1_bal_after_rescind2)
+    );
     let matcher1_rescind2_result = matcher1
         .call(&worker, contract.id(), "rescind_matching_funds")
         .args_json(
-            json!({"recipient": &recipient.id(), "requested_withdrawal_amount": matcher1_rescind2}),
+            json!({"recipient": &recipient.id(), "requested_withdrawal_amount": matcher1_rescind2_greedy}),
         )?
         .max_gas() // ONEDAY: Figure out how much gas to put here.
         .transact()
         .await?;
     log!("matcher1_rescind2_result = {:?}", matcher1_rescind2_result);
     assert_expected_commitments(&contract, &worker, &recipient, json!({})).await?;
-    log!("commitments are correct");
-    // TODO Assertions passed up through here. Fails with "Check whether gas used <= the tolerance specified in this assertion."
     assert_approx_considering_gas(
         &matcher1.view_account(&worker).await?.balance,
         &matcher1_bal_after_rescind2,
