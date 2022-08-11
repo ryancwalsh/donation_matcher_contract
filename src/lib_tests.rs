@@ -44,7 +44,7 @@ mod lib_tests {
         );
         //log_balance();
         set_context(
-            1, // Bob = 1
+            1, // 1 = Bob
             false,
             starting_balance,
             near_string_to_yocto(&"0.3".to_string()),
@@ -53,7 +53,7 @@ mod lib_tests {
         let _matcher1_offer_result = contract.offer_matching_funds(&recipient);
         log_balance();
         set_context(
-            2, // Charlie = 2
+            2, // 2 = Charlie
             false,
             starting_balance,
             near_string_to_yocto(&"0.1".to_string()),
@@ -76,7 +76,7 @@ mod lib_tests {
             "{\"bob\":\"0.28 Ⓝ\",\"charlie\":\"0.1 Ⓝ\"}".to_string()
         );
         set_context(
-            3, // Danny = 3
+            3, // 3 = Danny
             false,
             starting_balance,
             near_string_to_yocto(&"0.1".to_string()),
@@ -96,7 +96,7 @@ mod lib_tests {
         );
         //log_balance();
         set_context(
-            1, // Bob = 1
+            1, // 1 = Bob
             false,
             starting_balance,
             near_string_to_yocto(&"0.1".to_string()),
@@ -105,7 +105,7 @@ mod lib_tests {
         let _matcher1_offer_result = contract.offer_matching_funds(&recipient);
         log_balance();
         set_context(
-            1, // Bob = 1
+            1, // 1 = Bob
             false,
             starting_balance,
             near_string_to_yocto(&"0.1".to_string()),
@@ -126,5 +126,42 @@ mod lib_tests {
         // Unit tests cannot assert funds received via transfer (check state). The integration tests should.
         let result_after_rescind2 = contract.get_commitments(&recipient);
         assert_eq!(result_after_rescind2, "{}".to_string());
+    }
+
+    #[test]
+    fn test_offer_matching_funds_and_donate_and_get_commitments() {
+        let mut contract = Contract::new();
+        let starting_balance = near_string_to_yocto(&"1".to_string());
+        let offer = near_string_to_yocto(&"0.3".to_string());
+        let donation = near_string_to_yocto(&"0.2".to_string());
+        let recipient = accounts(0); // 0 = Alice
+        set_context(
+            0, // 0 = Alice
+            false,
+            starting_balance,
+            0,
+        );
+        set_context(
+            1, // 1 = Bob
+            false,
+            starting_balance,
+            offer,
+        );
+        log_balance();
+        let _matcher1_offer_result = contract.offer_matching_funds(&recipient);
+
+        log_balance();
+
+        set_context(2, false, starting_balance, donation);
+        let _donate_result = contract.donate(&recipient);
+        // Unit tests cannot assert funds received via transfer (check state). The integration tests should.
+        let commitments_after_donate = contract.get_commitments(&recipient);
+        assert_eq!(
+            commitments_after_donate,
+            format!(
+                "{{\"bob\":\"{}\"}}",
+                yocto_to_near_string(&(offer - donation))
+            )
+        );
     }
 }
