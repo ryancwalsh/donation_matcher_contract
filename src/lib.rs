@@ -27,7 +27,7 @@ type InMemoryMatcherAmountMap = HashMap<MatcherAccountId, Amount>;
 type RecipientAccountId = AccountId;
 type MatcherAmountPerRecipient = LookupMap<RecipientAccountId, MatcherAmountMap>;
 
-pub const GAS_FOR_ACCOUNT_CALLBACK: Gas = Gas(100_000_000_000_000); // gas for cross-contract calls, ~5 Tgas (teragas = 1e12) per "hop" // TODO: Document how to choose this number.
+pub const GAS_FOR_ACCOUNT_CALLBACK: Gas = Gas(500_000_000_000); // gas for cross-contract calls, ~5 Tgas (teragas = 1e12) per "hop" // TODO: Document how to choose this number. https://docs.near.org/concepts/basics/transactions/gas#the-cost-of-common-actions
 
 #[derive(BorshSerialize, BorshStorageKey)]
 enum StorageKey {
@@ -344,7 +344,7 @@ impl Contract {
         self.transfer_from_escrow(&recipient, sum_of_donations_to_send) // Then do the actual transfer. The donor attached a deposit which this contract owns at this point. Immediately pass it along to the intended recipient along with all matching funds.
             .then(
                 Self::ext(env::current_account_id()) // escrow contract name
-                    .with_static_gas(GAS_FOR_ACCOUNT_CALLBACK)
+                    .with_static_gas(gas_to_be_burned_during_transfer_from_escrow)
                     .on_donate(&donation_amount, &original_commitments), //In the callback, undo the state change if the transfer failed.
             );
     }
