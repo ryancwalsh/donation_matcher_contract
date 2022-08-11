@@ -55,7 +55,6 @@ async fn assert_expected_commitments(
     let commitments_result: String = contract
         .call(&worker, "get_commitments")
         .args_json(json!({"recipient": &recipient.id()}))?
-        //.gas(GAS_FOR_ACCOUNT_CALLBACK.0)
         .max_gas() // ONEDAY: Figure out how much gas to put here.
         .transact()
         .await?
@@ -83,12 +82,11 @@ async fn test_offer_matching_funds_and_get_commitments_and_rescind_matching_fund
     contract
         .call(&worker, "new")
         //.args_json(json!({"recipient": &recipient.id()}))?
-        //.gas(GAS_FOR_ACCOUNT_CALLBACK.0)
         .max_gas() // ONEDAY: Figure out how much gas to put here.
         .transact()
         .await?;
 
-    let starting_balance_for_each_acct = "1 Ⓝ".to_string();
+    let starting_balance_for_each_acct = "10 Ⓝ".to_string();
     let matcher1_offer = "0.3 Ⓝ".to_string();
     let matcher2_offer = "0.1 Ⓝ".to_string();
     let matcher1_rescind1 = "0.02 Ⓝ".to_string();
@@ -116,79 +114,75 @@ async fn test_offer_matching_funds_and_get_commitments_and_rescind_matching_fund
     )
     .await?;
 
+    let _matcher1_offer_result = matcher1
+        .call(&worker, contract.id(), "offer_matching_funds")
+        .args_json(json!({"recipient": &recipient.id()}))?
+        .max_gas() // ONEDAY: Figure out how much gas to put here.
+        .deposit(near_string_to_yocto(&matcher1_offer))
+        .transact()
+        .await?;
+
+    assert_eq!(
+        yocto_to_near_string(&recipient.view_account(&worker).await?.balance),
+        starting_balance_for_each_acct
+    ); // The recipient hasn't received any donation yet.
+    let matcher1_bal_after_offer = &near_string_to_yocto(&starting_balance_for_each_acct)
+        - &near_string_to_yocto(&matcher1_offer.to_string());
+    assert_approx_considering_gas(
+        &matcher1.view_account(&worker).await?.balance,
+        &matcher1_bal_after_offer,
+    );
+
+    let matcher2 = create_subaccount(
+        &worker,
+        &parent_account,
+        "matcher2",
+        starting_balance_for_each_acct.as_str(),
+    )
+    .await?;
+
+    let _matcher2_offer_result = matcher2
+        .call(&worker, contract.id(), "offer_matching_funds")
+        .args_json(json!({"recipient": &recipient.id()}))?
+        .max_gas() // ONEDAY: Figure out how much gas to put here.
+        .deposit(near_string_to_yocto(&matcher2_offer))
+        .transact()
+        .await?;
+
+    assert_eq!(
+        yocto_to_near_string(&recipient.view_account(&worker).await?.balance),
+        starting_balance_for_each_acct
+    ); // The recipient hasn't received any donation yet.
+    let matcher2_bal_after_offer = &near_string_to_yocto(&starting_balance_for_each_acct)
+        - &near_string_to_yocto(&matcher2_offer.to_string());
+    assert_approx_considering_gas(
+        &matcher2.view_account(&worker).await?.balance,
+        &matcher2_bal_after_offer,
+    );
+    assert_expected_commitments(
+        &contract,
+        &worker,
+        &recipient,
+        json!({
+            matcher1.id().to_string(): matcher1_offer,
+            matcher2.id().to_string(): matcher2_offer
+        }),
+    )
+    .await?;
+
+    log!(
+        "contract balance = {},matcher1 balance = {}, matcher1_rescind1 = {}",
+        yocto_to_near_string(&contract.view_account(&worker).await?.balance),
+        yocto_to_near_string(&matcher1.view_account(&worker).await?.balance),
+        matcher1_rescind1
+    );
     // TODO Assertions passed up through here.
-    // let _matcher1_offer_result = matcher1
-    //     .call(&worker, contract.id(), "offer_matching_funds")
-    //     .args_json(json!({"recipient": &recipient.id()}))?
-    //     //.gas(GAS_FOR_ACCOUNT_CALLBACK.0)
-    //     .max_gas() // ONEDAY: Figure out how much gas to put here.
-    //     .deposit(near_string_to_yocto(&matcher1_offer))
-    //     .transact()
-    //     .await?;
-
-    // TODO: Failed with NotEnoughBalance.
-    // assert_eq!(
-    //     yocto_to_near_string(&recipient.view_account(&worker).await?.balance),
-    //     starting_balance_for_each_acct
-    // ); // The recipient hasn't received any donation yet.
-    // let matcher1_bal_after_offer = &near_string_to_yocto(&starting_balance_for_each_acct)
-    //     - &near_string_to_yocto(&matcher1_offer.to_string());
-    // assert_approx_considering_gas(
-    //     &matcher1.view_account(&worker).await?.balance,
-    //     &matcher1_bal_after_offer,
-    // );
-
-    // let matcher2 = create_subaccount(
-    //     &worker,
-    //     &parent_account,
-    //     "matcher2",
-    //     starting_balance_for_each_acct.as_str(),
-    // )
-    // .await?;
-
-    // let _matcher2_offer_result = matcher2
-    //     .call(&worker, contract.id(), "offer_matching_funds")
-    //     .args_json(json!({"recipient": &recipient.id()}))?
-    //     //.gas(GAS_FOR_ACCOUNT_CALLBACK.0)
-    //     .max_gas() // ONEDAY: Figure out how much gas to put here.
-    //     .deposit(near_string_to_yocto(&matcher2_offer))
-    //     .transact()
-    //     .await?;
-
-    // assert_eq!(
-    //     yocto_to_near_string(&recipient.view_account(&worker).await?.balance),
-    //     starting_balance_for_each_acct
-    // ); // The recipient hasn't received any donation yet.
-    // let matcher2_bal_after_offer = &near_string_to_yocto(&starting_balance_for_each_acct)
-    //     - &near_string_to_yocto(&matcher2_offer.to_string());
-    // assert_approx_considering_gas(
-    //     &matcher2.view_account(&worker).await?.balance,
-    //     &matcher2_bal_after_offer,
-    // );
-    // assert_expected_commitments(
-    //     &contract,
-    //     &worker,
-    //     &recipient,
-    //     json!({
-    //         matcher1.id().to_string(): matcher1_offer,
-    //         matcher2.id().to_string(): matcher2_offer
-    //     }),
-    // )
-    // .await?;
-
-    // log!(
-    //     "contract balance = {},matcher1 balance = {}, matcher1_rescind1 = {}",
-    //     yocto_to_near_string(&contract.view_account(&worker).await?.balance),
-    //     yocto_to_near_string(&matcher1.view_account(&worker).await?.balance),
-    //     matcher1_rescind1
-    // );
-
+    // TODO: Failed with NotEnoughBalance.?
     // let matcher1_rescind1_result = matcher1
     //     .call(&worker, contract.id(), "rescind_matching_funds")
     //     .args_json(
     //         json!({"recipient": &recipient.id(), "requested_withdrawal_amount": matcher1_rescind1}),
     //     )?
-    //     //.gas(GAS_FOR_ACCOUNT_CALLBACK.0 * 5) // ONEDAY: Figure out how much gas to put here.
     //     .max_gas()
     //     .transact()
     //     .await?;
@@ -230,7 +224,6 @@ async fn test_offer_matching_funds_and_get_commitments_and_rescind_matching_fund
     // let _donate_result = donor
     //     .call(&worker, contract.id(), "donate")
     //     .args_json(json!({"recipient": &recipient.id()}))?
-    //     //.gas(GAS_FOR_ACCOUNT_CALLBACK.0 * 5)
     //     .max_gas() // ONEDAY: Figure out how much gas to put here.
     //     .deposit(near_string_to_yocto(&donation))
     //     .transact()
