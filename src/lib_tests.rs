@@ -121,6 +121,7 @@ mod lib_tests {
         // Unit tests cannot assert funds received via transfer (check state). The integration tests should.
         let result_after_rescind1 = contract.get_commitments(&recipient);
         assert_eq!(result_after_rescind1, "{\"bob\":\"0.18 Ⓝ\"}".to_string());
+        log!("Someone trying to rescind more than their remaining commitment...");
         let _matcher1_rescind_result2 =
             contract.rescind_matching_funds(&recipient, "99 Ⓝ".to_string());
         // Unit tests cannot assert funds received via transfer (check state). The integration tests should.

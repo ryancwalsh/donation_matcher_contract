@@ -174,7 +174,7 @@ async fn test_offer_matching_funds_and_get_commitments_and_rescind_matching_fund
         matcher1_rescind1
     );
 
-    let matcher1_rescind1_result = matcher1
+    let _matcher1_rescind1_result = matcher1
         .call(&worker, contract.id(), "rescind_matching_funds")
         .args_json(
             json!({"recipient": &recipient.id(), "requested_withdrawal_amount": matcher1_rescind1}),
@@ -261,7 +261,8 @@ async fn test_offer_matching_funds_and_get_commitments_and_rescind_matching_fund
             }),
     )
     .await?;
-    // TODO Assertions passed up through here.
+    let matcher1_bal_after_rescind2 =
+        &matcher1_bal_after_offer + &near_string_to_yocto(&matcher1_rescind2);
     let matcher1_rescind2_result = matcher1
         .call(&worker, contract.id(), "rescind_matching_funds")
         .args_json(
@@ -271,14 +272,13 @@ async fn test_offer_matching_funds_and_get_commitments_and_rescind_matching_fund
         .transact()
         .await?;
     log!("matcher1_rescind2_result = {:?}", matcher1_rescind2_result);
-    let matcher1_bal_after_rescind2 =
-        &matcher1_bal_after_offer + &near_string_to_yocto(&matcher1_rescind2);
+    assert_expected_commitments(&contract, &worker, &recipient, json!({})).await?;
+    log!("commitments are correct");
+    // TODO Assertions passed up through here. Fails with "Check whether gas used <= the tolerance specified in this assertion."
     assert_approx_considering_gas(
         &matcher1.view_account(&worker).await?.balance,
         &matcher1_bal_after_rescind2,
     );
-
-    assert_expected_commitments(&contract, &worker, &recipient, json!({})).await?;
 
     Ok(())
 }
