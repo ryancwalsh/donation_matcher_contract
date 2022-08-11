@@ -262,23 +262,23 @@ async fn test_offer_matching_funds_and_get_commitments_and_rescind_matching_fund
     )
     .await?;
     // TODO Assertions passed up through here.
-    // let _matcher1_rescind2_result = matcher1
-    //     .call(&worker, contract.id(), "rescind_matching_funds")
-    //     .args_json(
-    //         json!({"recipient": &recipient.id(), "requested_withdrawal_amount": matcher1_rescind2}),
-    //     )?
-    ////     .gas(GAS_FOR_ACCOUNT_CALLBACK.0)
-    //.max_gas() // ONEDAY: Figure out how much gas to put here.
-    //     .transact()
-    //     .await?;
-    // let matcher1_bal_after_rescind2 =
-    //     &matcher1_bal_after_offer + &near_string_to_yocto(&matcher1_rescind2);
-    // assert_approx_considering_gas(
-    //     &matcher1.view_account(&worker).await?.balance,
-    //     &matcher1_bal_after_rescind2,
-    // );
+    let matcher1_rescind2_result = matcher1
+        .call(&worker, contract.id(), "rescind_matching_funds")
+        .args_json(
+            json!({"recipient": &recipient.id(), "requested_withdrawal_amount": matcher1_rescind2}),
+        )?
+        .max_gas() // ONEDAY: Figure out how much gas to put here.
+        .transact()
+        .await?;
+    log!("matcher1_rescind2_result = {:?}", matcher1_rescind2_result);
+    let matcher1_bal_after_rescind2 =
+        &matcher1_bal_after_offer + &near_string_to_yocto(&matcher1_rescind2);
+    assert_approx_considering_gas(
+        &matcher1.view_account(&worker).await?.balance,
+        &matcher1_bal_after_rescind2,
+    );
 
-    // assert_expected_commitments(&contract, &worker, &recipient, json!({})).await?;
+    assert_expected_commitments(&contract, &worker, &recipient, json!({})).await?;
 
     Ok(())
 }
